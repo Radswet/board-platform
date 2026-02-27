@@ -1,0 +1,12 @@
+# La anon key de Supabase es pública por diseño — config.js SÍ se puede subir
+# Solo omite la secret key (sb_secret_...) que nunca debe estar en el código
+
+# Carpetas locales que no van al repo
+analisis/
+.claude/
+.venv/
+
+# Sistema
+.DS_Store
+__pycache__/
+*.pyc

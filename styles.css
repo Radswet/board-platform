@@ -94,6 +94,21 @@ button.full          { width: 100%; justify-content: center; padding: 11px; font
 .field           { margin-bottom: 14px; }
 .field label     { display: block; font-size: 0.72rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
 
+.field textarea {
+  width: 100%;
+  background: #111;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 13px;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-family: inherit;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.15s;
+}
+.field textarea:focus { border-color: #505050; }
+
 .field input,
 .field select {
   width: 100%;
@@ -206,7 +221,7 @@ header {
   border-radius: 16px;
 }
 
-.canvas {
+#canvas {
   position: relative;
   width: 3000px;
   height: 2000px;
@@ -410,6 +425,7 @@ header {
 
 /* ── Empty state ──────────────────────────────────────────────────────── */
 .empty { text-align: center; color: var(--muted); padding: 40px 0; font-size: 0.9rem; }
+.empty-search { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); }
 
 /* ── Responsive ───────────────────────────────────────────────────────── */
 @media (max-width: 480px) {

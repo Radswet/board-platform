@@ -249,8 +249,7 @@ function render() {
 
   if (visible.length === 0 && searchQuery) {
     const msg = document.createElement('p');
-    msg.className = 'empty';
-    msg.style.cssText = 'position:absolute;top:40px;left:50%;transform:translateX(-50%);';
+    msg.className = 'empty empty-search';
     msg.textContent = `Sin resultados para "${searchQuery}"`;
     canvas.appendChild(msg);
     return;

@@ -6,9 +6,6 @@ analisis/
 .claude/
 .venv/
 
-# Config con credenciales
-config.js
-
 # Sistema
 .DS_Store
 __pycache__/

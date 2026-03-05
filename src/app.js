@@ -29,7 +29,7 @@ let currentBoard = null;
 
 // ── Init ───────────────────────────────────────────────────────────────
 async function init() {
-  const isConfigured = SUPABASE_URL !== 'TU_SUPABASE_URL' && SUPABASE_KEY !== 'TU_SUPABASE_ANON_KEY';
+  const isConfigured = SUPABASE_URL && SUPABASE_KEY && SUPABASE_URL !== 'TU_SUPABASE_URL' && SUPABASE_KEY !== 'TU_SUPABASE_ANON_KEY';
 
   if (!isConfigured) {
     hide('loading-overlay');

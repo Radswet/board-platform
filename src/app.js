@@ -264,9 +264,14 @@ async function loadBoards() {
 
 async function createBoard(name, isDefault = false) {
   if (!sb) return;
-  const { data: board, error } = await sb
-    .from('boards').insert({ name, created_by: currentUser.id }).select().single();
+  const { error } = await sb.from('boards').insert({ name, created_by: currentUser.id });
   if (error) { showToast('Error al crear tablero: ' + error.message); console.error('createBoard error:', error); return; }
+
+  const { data: board } = await sb.from('boards')
+    .select('id, name, created_by')
+    .eq('created_by', currentUser.id)
+    .order('created_at', { ascending: false })
+    .limit(1).single();
   await sb.from('board_members').insert({ board_id: board.id, user_id: currentUser.id, role: 'owner' });
   if (isDefault) {
     await sb.from('links').update({ board_id: board.id }).is('board_id', null);

@@ -56,7 +56,7 @@ DROP POLICY IF EXISTS "boards_insert" ON public.boards;
 DROP POLICY IF EXISTS "boards_update" ON public.boards;
 DROP POLICY IF EXISTS "boards_delete" ON public.boards;
 
-CREATE POLICY "boards_select" ON public.boards FOR SELECT TO authenticated USING (id IN (SELECT public.my_board_ids()));
+CREATE POLICY "boards_select" ON public.boards FOR SELECT TO authenticated USING (id IN (SELECT public.my_board_ids()) OR created_by = auth.uid());
 CREATE POLICY "boards_insert" ON public.boards FOR INSERT TO authenticated WITH CHECK (created_by = auth.uid());
 CREATE POLICY "boards_update" ON public.boards FOR UPDATE TO authenticated USING (public.my_role_in_board(id) = 'owner');
 CREATE POLICY "boards_delete" ON public.boards FOR DELETE TO authenticated USING (public.my_role_in_board(id) = 'owner');
@@ -84,7 +84,7 @@ DROP POLICY IF EXISTS "board_invites_insert" ON public.board_invites;
 DROP POLICY IF EXISTS "board_invites_update" ON public.board_invites;
 DROP POLICY IF EXISTS "board_invites_delete" ON public.board_invites;
 
-CREATE POLICY "board_invites_select" ON public.board_invites FOR SELECT TO authenticated USING (public.my_role_in_board(board_id) = 'owner' OR invited_email = (SELECT email FROM auth.users WHERE id = auth.uid()));
+CREATE POLICY "board_invites_select" ON public.board_invites FOR SELECT TO authenticated USING (public.my_role_in_board(board_id) = 'owner' OR invited_email = auth.email());
 CREATE POLICY "board_invites_insert" ON public.board_invites FOR INSERT TO authenticated WITH CHECK (public.my_role_in_board(board_id) = 'owner');
 CREATE POLICY "board_invites_update" ON public.board_invites FOR UPDATE TO authenticated USING (invited_email = (SELECT email FROM auth.users WHERE id = auth.uid()) OR public.my_role_in_board(board_id) = 'owner');
 CREATE POLICY "board_invites_delete" ON public.board_invites FOR DELETE TO authenticated USING (public.my_role_in_board(board_id) = 'owner');

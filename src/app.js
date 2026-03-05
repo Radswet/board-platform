@@ -25,6 +25,7 @@ let isDragging = false;
 let searchQuery = '';
 let realtimeChannel = null;
 let isSaving = false;
+let selectedGroup = null;
 
 // ── Init ───────────────────────────────────────────────────────────────
 async function init() {
@@ -240,22 +241,148 @@ function render() {
   const canvas = document.getElementById('canvas');
   canvas.innerHTML = '';
 
-  const visible = searchQuery
-    ? links.filter(l =>
-        l.name.toLowerCase().includes(searchQuery) ||
-        (l.description || '').toLowerCase().includes(searchQuery)
-      )
+  let visible = selectedGroup
+    ? links.filter(l => (l.group_name || '') === selectedGroup)
     : links;
 
-  if (visible.length === 0 && searchQuery) {
-    const msg = document.createElement('p');
-    msg.className = 'empty empty-search';
-    msg.textContent = `Sin resultados para "${searchQuery}"`;
-    canvas.appendChild(msg);
+  if (searchQuery) {
+    visible = visible.filter(l =>
+      l.name.toLowerCase().includes(searchQuery) ||
+      (l.description || '').toLowerCase().includes(searchQuery)
+    );
+  }
+
+  if (visible.length === 0) {
+    const empty = document.createElement('div');
+    if (searchQuery) {
+      empty.className = 'empty empty-search';
+      empty.textContent = `Sin resultados para "${searchQuery}"`;
+    } else if (selectedGroup) {
+      empty.className = 'empty empty-search';
+      empty.textContent = `Sin accesos en "${selectedGroup}"`;
+    } else {
+      empty.className = 'empty-state';
+      empty.innerHTML = `
+        <div class="empty-state-icon">✦</div>
+        <p class="empty-state-title">Tu tablero está vacío</p>
+        <p class="empty-state-sub">Agrega tu primer acceso rápido o nota</p>
+        <button class="primary empty-state-btn" id="empty-add-btn">+ Agregar</button>
+      `;
+    }
+    canvas.appendChild(empty);
+    document.getElementById('empty-add-btn')?.addEventListener('click', () => openModal(null));
     return;
   }
 
   visible.forEach((link, i) => canvas.appendChild(createTile(link, i)));
+  renderGroupTabs();
+}
+
+function renderGroupTabs() {
+  const container = document.getElementById('group-tabs');
+  if (!container) return;
+
+  const groups = [...new Set(links.map(l => l.group_name || '').filter(Boolean))].sort();
+
+  if (groups.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = '';
+
+  const all = document.createElement('button');
+  all.className = 'group-tab' + (selectedGroup === null ? ' active' : '');
+  all.textContent = 'Todos';
+  all.addEventListener('click', () => { selectedGroup = null; render(); });
+  container.appendChild(all);
+
+  groups.forEach(g => {
+    const wrap = document.createElement('div');
+    wrap.className = 'group-tab-wrap';
+
+    const btn = document.createElement('button');
+    btn.className = 'group-tab' + (selectedGroup === g ? ' active' : '');
+    btn.innerHTML = `<span class="group-tab-label">${esc(g)}</span><svg class="group-edit-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><svg class="group-delete-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>`;
+    btn.addEventListener('click', e => {
+      if (e.target.closest('.group-edit-icon')) {
+        startGroupRename(wrap, btn, g);
+      } else if (e.target.closest('.group-delete-icon')) {
+        confirmDeleteGroup(btn, g);
+      } else {
+        selectedGroup = g; render();
+      }
+    });
+
+    wrap.appendChild(btn);
+    container.appendChild(wrap);
+  });
+}
+
+function startGroupRename(wrap, btn, oldName) {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'group-tab group-tab-input';
+  input.value = oldName;
+
+  wrap.replaceChild(input, btn);
+  input.focus();
+  input.select();
+
+  async function commit() {
+    const newName = input.value.trim();
+    if (newName && newName !== oldName) {
+      await renameGroup(oldName, newName);
+      if (selectedGroup === oldName) selectedGroup = newName;
+    }
+    await loadLinks();
+  }
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') { wrap.replaceChild(btn, input); }
+  });
+  input.addEventListener('blur', commit);
+}
+
+function confirmDeleteGroup(btn, groupName) {
+  document.querySelectorAll('.group-delete-popup').forEach(p => p.remove());
+
+  const popup = document.createElement('div');
+  popup.className = 'group-delete-popup';
+  popup.innerHTML = `<span>¿Eliminar etiqueta?</span><button class="group-delete-confirm">Sí</button>`;
+
+  btn.parentElement.appendChild(popup);
+
+  popup.querySelector('.group-delete-confirm').addEventListener('click', e => {
+    e.stopPropagation();
+    popup.remove();
+    deleteGroup(groupName);
+  });
+
+  setTimeout(() => {
+    document.addEventListener('click', function handler() {
+      popup.remove();
+      document.removeEventListener('click', handler);
+    });
+  }, 0);
+}
+
+async function deleteGroup(groupName) {
+  if (!sb) return;
+  const targets = links.filter(l => l.group_name === groupName).map(l => l.id);
+  await Promise.all(targets.map(id => sb.from('links').update({ group_name: '' }).eq('id', id)));
+  if (selectedGroup === groupName) selectedGroup = null;
+  await loadLinks();
+}
+
+async function renameGroup(oldName, newName) {
+  if (!sb) return;
+  const targets = links.filter(l => l.group_name === oldName).map(l => l.id);
+  if (targets.length === 0) return;
+  await Promise.all(
+    targets.map(id => sb.from('links').update({ group_name: newName }).eq('id', id))
+  );
 }
 
 function createTile(link, index = 0) {
@@ -323,6 +450,7 @@ function openModal(id) {
     document.getElementById('f-url').value = link.url;
     document.getElementById('f-desc').value = link.description || '';
     selectedColor = link.color || COLORS[0];
+    document.getElementById('f-group').value = link.group_name || '';
     delBtn.classList.remove('hidden');
   } else {
     document.getElementById('modal-title').textContent = 'Nuevo acceso';
@@ -331,13 +459,25 @@ function openModal(id) {
     document.getElementById('f-url').value = '';
     document.getElementById('f-desc').value = '';
     selectedColor = COLORS[Math.floor(Math.random() * COLORS.length)];
+    document.getElementById('f-group').value = '';
     delBtn.classList.add('hidden');
   }
 
   document.getElementById('favicon-row').classList.add('hidden');
   document.getElementById('favicon-preview').innerHTML = '';
+  document.getElementById('f-icon').dataset.userSet = '0';
 
   buildPalette();
+
+  // Populate group suggestions
+  const dl = document.getElementById('group-suggestions');
+  dl.innerHTML = '';
+  [...new Set(links.map(l => l.group_name || '').filter(Boolean))].forEach(g => {
+    const opt = document.createElement('option');
+    opt.value = g;
+    dl.appendChild(opt);
+  });
+
   document.getElementById('overlay').classList.remove('hidden');
   setTimeout(() => document.getElementById('f-name').focus(), 60);
 }
@@ -345,11 +485,15 @@ function openModal(id) {
 function closeModal() {
   document.getElementById('overlay').classList.add('hidden');
   editingId = null;
+  resetDeleteBtn();
 }
 
 function buildPalette() {
   const palette = document.getElementById('color-palette');
   palette.innerHTML = '';
+
+  const isCustom = !COLORS.includes(selectedColor);
+
   COLORS.forEach(c => {
     const el = document.createElement('div');
     el.className = 'color-opt' + (c === selectedColor ? ' selected' : '');
@@ -361,6 +505,27 @@ function buildPalette() {
     });
     palette.appendChild(el);
   });
+
+  // Custom color swatch
+  const label = document.createElement('label');
+  label.className = 'color-opt color-custom' + (isCustom ? ' selected' : '');
+  label.title = 'Color personalizado';
+  if (isCustom) label.style.background = selectedColor;
+
+  const input = document.createElement('input');
+  input.type = 'color';
+  input.className = 'color-picker-input';
+  input.value = isCustom ? selectedColor : '#60a5fa';
+
+  input.addEventListener('input', e => {
+    selectedColor = e.target.value;
+    label.style.background = selectedColor;
+    palette.querySelectorAll('.color-opt').forEach(x => x.classList.remove('selected'));
+    label.classList.add('selected');
+  });
+
+  label.appendChild(input);
+  palette.appendChild(label);
 }
 
 async function saveLink() {
@@ -372,7 +537,8 @@ async function saveLink() {
 
   setDisabled('btn-save', true, 'Guardando...');
 
-  const payload = { icon, name, url, description: desc, color: selectedColor };
+  const group = val('f-group');
+  const payload = { icon, name, url, description: desc, color: selectedColor, group_name: group };
   if (editingId) payload.id = editingId;
 
   await upsertLink(payload);
@@ -382,18 +548,47 @@ async function saveLink() {
   closeModal();
 }
 
+let deleteConfirmTimer = null;
+
 async function deleteLink() {
   if (!editingId) return;
+
+  const btn = document.getElementById('btn-delete');
+
+  if (!btn.dataset.confirming) {
+    btn.dataset.confirming = '1';
+    btn.textContent = '¿Confirmar?';
+    btn.style.background = '#5a1a1a';
+    btn.style.borderColor = '#8a2a2a';
+    btn.style.color = '#ff9090';
+    deleteConfirmTimer = setTimeout(() => resetDeleteBtn(), 3000);
+    return;
+  }
+
+  clearTimeout(deleteConfirmTimer);
   const link = links.find(l => l.id === editingId);
   setDisabled('btn-delete', true, '...');
   await removeLink(editingId);
-  setDisabled('btn-delete', false, 'Eliminar');
+  resetDeleteBtn();
   showToast(`"${link.name}" eliminado`);
   closeModal();
 }
 
+function resetDeleteBtn() {
+  const btn = document.getElementById('btn-delete');
+  if (!btn) return;
+  delete btn.dataset.confirming;
+  btn.textContent = 'Eliminar';
+  btn.style.background = '';
+  btn.style.borderColor = '';
+  btn.style.color = '';
+  btn.disabled = false;
+  clearTimeout(deleteConfirmTimer);
+}
+
 // ── Drag libre ─────────────────────────────────────────────────────────
 function initTileDrag(tile, link, isNote) {
+  if (isMobile()) return;
   let startMX, startMY, startLeft, startTop, moved;
 
   function pointerDown(e) {
@@ -477,6 +672,26 @@ function showToast(msg) {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
+// ── Color helpers ──────────────────────────────────────────────────────
+function hexToRgb(hex) {
+  return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
+}
+function mixColor(hex, target, amount) {
+  const [r,g,b] = hexToRgb(hex);
+  const nr = Math.round(r + (target[0]-r)*amount);
+  const ng = Math.round(g + (target[1]-g)*amount);
+  const nb = Math.round(b + (target[2]-b)*amount);
+  return '#'+[nr,ng,nb].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+function deriveIconBg(cardColor) {
+  if (!cardColor || cardColor.length < 7) return 'rgba(255,255,255,0.18)';
+  return isLight(cardColor)
+    ? mixColor(cardColor, [0,0,0], 0.13)
+    : mixColor(cardColor, [255,255,255], 0.22);
+}
+
+function isMobile() { return window.matchMedia('(max-width: 640px)').matches; }
+
 function val(id) { return document.getElementById(id).value.trim(); }
 function show(id) { document.getElementById(id).classList.remove('hidden'); }
 function hide(id) { document.getElementById(id).classList.add('hidden'); }
@@ -531,13 +746,11 @@ function getDemoLinks() {
 // Auth
 document.getElementById('tab-login-btn').addEventListener('click', () => switchTab('login'));
 document.getElementById('tab-signup-btn').addEventListener('click', () => switchTab('signup'));
-document.getElementById('btn-login').addEventListener('click', login);
-document.getElementById('btn-signup').addEventListener('click', signup);
+document.getElementById('login-panel').addEventListener('submit', e => { e.preventDefault(); login(); });
+document.getElementById('signup-panel').addEventListener('submit', e => { e.preventDefault(); signup(); });
 document.getElementById('btn-logout').addEventListener('click', logout);
 
-document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
-document.getElementById('login-email').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
-document.getElementById('signup-pass').addEventListener('keydown', e => { if (e.key === 'Enter') signup(); });
+
 
 // Dashboard
 document.getElementById('btn-add').addEventListener('click', () => openModal(null));
@@ -573,19 +786,31 @@ document.getElementById('f-url').addEventListener('input', e => {
   const row = document.getElementById('favicon-row');
   const preview = document.getElementById('favicon-preview');
 
+  const iconField = document.getElementById('f-icon');
+  const userSetIcon = iconField.dataset.userSet === '1';
+
   if (faviconUrl) {
     preview.innerHTML = `<img src="${faviconUrl}" alt="">`;
     row.classList.remove('hidden');
+    if (!userSetIcon) {
+      iconField.value = faviconUrl;
+    }
   } else {
     row.classList.add('hidden');
     preview.innerHTML = '';
+    if (!userSetIcon) iconField.value = '';
   }
+});
+
+document.getElementById('f-icon').addEventListener('input', () => {
+  document.getElementById('f-icon').dataset.userSet = '1';
 });
 
 document.getElementById('favicon-use-btn').addEventListener('click', () => {
   const faviconUrl = getFaviconUrl(document.getElementById('f-url').value);
   if (faviconUrl) {
     document.getElementById('f-icon').value = faviconUrl;
+    document.getElementById('f-icon').dataset.userSet = '1';
     showToast('Favicon aplicado como ícono');
   }
 });
@@ -598,6 +823,29 @@ document.getElementById('search').addEventListener('input', e => {
 document.getElementById('site-title').addEventListener('input', e => {
   localStorage.setItem(TITLE_KEY, e.target.value);
   document.title = e.target.value.replace(/[^\w\s]/g,'').trim() || 'Mi Tablero';
+});
+
+// Password toggle
+const EYE_OPEN = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const EYE_OFF  = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-10-7-10-7a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+
+document.querySelectorAll('.pass-toggle').forEach(btn => {
+  btn.innerHTML = EYE_OPEN;
+  btn.addEventListener('click', () => {
+    const input = document.getElementById(btn.dataset.target);
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    btn.innerHTML = show ? EYE_OFF : EYE_OPEN;
+  });
+});
+
+// Cmd+K / Ctrl+K → abrir modal
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    if (!document.getElementById('overlay').classList.contains('hidden')) return;
+    openModal(null);
+  }
 });
 
 // ── Start ──────────────────────────────────────────────────────────────

@@ -8,7 +8,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
 
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="src/styles.css">
 </head>
 <body>
 
@@ -30,30 +30,36 @@
     </div>
 
     <!-- Login -->
-    <div id="login-panel">
+    <form id="login-panel" autocomplete="on">
       <div class="field">
         <label>Email</label>
         <input type="email" id="login-email" placeholder="tu@email.com" autocomplete="email">
       </div>
       <div class="field">
         <label>Contraseña</label>
-        <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+        <div class="pass-wrap">
+          <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+          <button type="button" class="pass-toggle" data-target="login-pass" tabindex="-1"></button>
+        </div>
       </div>
-      <button class="primary full" id="btn-login">Iniciar sesión</button>
-    </div>
+      <button type="submit" class="primary full" id="btn-login">Iniciar sesión</button>
+    </form>
 
     <!-- Signup -->
-    <div id="signup-panel" class="hidden">
+    <form id="signup-panel" class="hidden" autocomplete="on">
       <div class="field">
         <label>Email</label>
         <input type="email" id="signup-email" placeholder="tu@email.com" autocomplete="email">
       </div>
       <div class="field">
         <label>Contraseña</label>
-        <input type="password" id="signup-pass" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
+        <div class="pass-wrap">
+          <input type="password" id="signup-pass" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
+          <button type="button" class="pass-toggle" data-target="signup-pass" tabindex="-1"></button>
+        </div>
       </div>
-      <button class="primary full" id="btn-signup">Crear cuenta</button>
-    </div>
+      <button type="submit" class="primary full" id="btn-signup">Crear cuenta</button>
+    </form>
 
     <p id="auth-msg" class="auth-msg hidden"></p>
   </div>
@@ -81,6 +87,8 @@
   <div class="search-wrap">
     <input type="search" id="search" placeholder="Buscar acceso...">
   </div>
+
+  <div id="group-tabs" class="group-tabs"></div>
 
   <div class="canvas-wrap">
     <div id="canvas"></div>
@@ -114,6 +122,11 @@
       <textarea id="f-desc" placeholder="Breve descripción..." rows="2"></textarea>
     </div>
     <div class="field">
+      <label>Grupo <span style="opacity:0.5;font-weight:400">(opcional)</span></label>
+      <input type="text" id="f-group" placeholder="Trabajo, Personal..." autocomplete="off" list="group-suggestions">
+      <datalist id="group-suggestions"></datalist>
+    </div>
+    <div class="field">
       <label>Color</label>
       <div class="colors" id="color-palette"></div>
     </div>
@@ -142,6 +155,6 @@
 <div id="toast"></div>
 
 <!-- ── SCRIPT ─────────────────────────────────────────────────────────── -->
-<script src="app.js"></script>
+<script src="src/app.js"></script>
 </body>
 </html>

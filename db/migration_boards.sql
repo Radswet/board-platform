@@ -86,7 +86,7 @@ DROP POLICY IF EXISTS "board_invites_delete" ON public.board_invites;
 
 CREATE POLICY "board_invites_select" ON public.board_invites FOR SELECT TO authenticated USING (public.my_role_in_board(board_id) = 'owner' OR invited_email = auth.email());
 CREATE POLICY "board_invites_insert" ON public.board_invites FOR INSERT TO authenticated WITH CHECK (public.my_role_in_board(board_id) = 'owner');
-CREATE POLICY "board_invites_update" ON public.board_invites FOR UPDATE TO authenticated USING (invited_email = (SELECT email FROM auth.users WHERE id = auth.uid()) OR public.my_role_in_board(board_id) = 'owner');
+CREATE POLICY "board_invites_update" ON public.board_invites FOR UPDATE TO authenticated USING (invited_email = auth.email() OR public.my_role_in_board(board_id) = 'owner');
 CREATE POLICY "board_invites_delete" ON public.board_invites FOR DELETE TO authenticated USING (public.my_role_in_board(board_id) = 'owner');
 
 -- ── 6. RLS links (reemplazar políticas anteriores) ────────────────────

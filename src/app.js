@@ -127,6 +127,17 @@ function translateError(msg) {
   return msg;
 }
 
+function translateDbError(error) {
+  const msg = error?.message || '';
+  if (msg.includes('permission denied')) return 'Sin permiso para realizar esta acción';
+  if (msg.includes('violates row-level security')) return 'Sin permiso para realizar esta acción';
+  if (msg.includes('duplicate key') || msg.includes('unique')) return 'Ya existe un registro con esos datos';
+  if (msg.includes('foreign key')) return 'Referencia inválida';
+  if (msg.includes('not found') || msg.includes('PGRST116')) return 'Registro no encontrado';
+  if (msg.includes('JWT')) return 'Sesión expirada, vuelve a iniciar sesión';
+  return 'Ocurrió un error inesperado';
+}
+
 // ── Auth UI ────────────────────────────────────────────────────────────
 function switchTab(tab) {
   const isLogin = tab === 'login';
@@ -184,7 +195,7 @@ async function upsertLink(payload) {
   if (payload.id) {
     const { id, ...rest } = payload;
     const { error } = await sb.from('links').update(rest).eq('id', id);
-    if (error) showToast('Error al actualizar: ' + error.message);
+    if (error) showToast(translateDbError(error));
   } else {
     const maxPos = links.length ? Math.max(...links.map(l => l.position ?? 0)) + 1 : 0;
     const { error } = await sb.from('links').insert({
@@ -193,7 +204,7 @@ async function upsertLink(payload) {
       created_by: currentUser.id,
       board_id: currentBoard.id,
     });
-    if (error) showToast('Error al guardar: ' + error.message);
+    if (error) showToast(translateDbError(error));
   }
 
   isSaving = false;
@@ -265,7 +276,7 @@ async function loadBoards() {
 async function createBoard(name, isDefault = false) {
   if (!sb) return;
   const { error } = await sb.from('boards').insert({ name, created_by: currentUser.id });
-  if (error) { showToast('Error al crear tablero: ' + error.message); console.error('createBoard error:', error); return; }
+  if (error) { showToast(translateDbError(error)); console.error('createBoard error:', error); return; }
 
   const { data: board } = await sb.from('boards')
     .select('id, name, created_by')
@@ -279,6 +290,7 @@ async function createBoard(name, isDefault = false) {
   await loadBoards();
   currentBoard = boards.find(b => b.id === board.id) || boards[0];
   renderBoardSwitcher();
+  await loadLinks();
 }
 
 async function switchBoard(board) {
@@ -450,11 +462,22 @@ async function loadMembers() {
   });
 
   list.querySelectorAll('.member-remove-btn').forEach(btn => {
+    let timer = null;
+    let confirming = false;
     btn.addEventListener('click', async e => {
-      await sb.from('board_members').delete()
-        .eq('board_id', currentBoard.id).eq('user_id', e.target.dataset.uid);
-      await loadMembers();
-      showToast('Miembro eliminado');
+      const uid = e.target.dataset.uid;
+      if (!confirming) {
+        confirming = true;
+        btn.textContent = '¿Quitar?';
+        btn.classList.add('danger');
+        timer = setTimeout(() => { confirming = false; btn.textContent = '✕'; btn.classList.remove('danger'); }, 3000);
+      } else {
+        clearTimeout(timer);
+        await sb.from('board_members').delete()
+          .eq('board_id', currentBoard.id).eq('user_id', uid);
+        await loadMembers();
+        showToast('Miembro eliminado');
+      }
     });
   });
 
@@ -492,7 +515,7 @@ async function sendInvite() {
     invited_by: currentUser.id, role, status: 'pending'
   }, { onConflict: 'board_id,invited_email' });
 
-  if (error) { showToast('Error: ' + error.message); return; }
+  if (error) { showToast(translateDbError(error)); return; }
   document.getElementById('invite-email').value = '';
   showToast(`Invitación enviada a ${email}`);
   await loadMembers();

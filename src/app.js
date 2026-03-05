@@ -302,6 +302,9 @@ function openBoardDropdown() {
   dd.innerHTML = '';
   dd.classList.remove('hidden');
 
+  // Evitar que clicks dentro del dropdown lleguen al handler de "afuera"
+  dd.addEventListener('click', e => e.stopPropagation());
+
   const ROLE_LABEL = { owner: 'Dueño', editor: 'Editor', viewer: 'Solo ver' };
 
   boards.forEach(b => {

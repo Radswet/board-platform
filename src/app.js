@@ -14,8 +14,6 @@ const COLORS = [
   '#c084fc','#f472b6','#fb7185','#e2e8f0',
 ];
 
-const TITLE_KEY = 'tablero_title';
-
 let sb;
 let links = [];
 let currentUser = null;
@@ -26,6 +24,8 @@ let searchQuery = '';
 let realtimeChannel = null;
 let isSaving = false;
 let selectedGroup = null;
+let boards = [];
+let currentBoard = null;
 
 // ── Init ───────────────────────────────────────────────────────────────
 async function init() {
@@ -65,19 +65,15 @@ async function init() {
   }
 }
 
-function onAuth(user) {
+async function onAuth(user) {
   currentUser = user;
   hide('auth-view');
   show('dash-view');
   document.getElementById('user-badge').textContent = user.email;
 
-  const savedTitle = localStorage.getItem(TITLE_KEY);
-  if (savedTitle) {
-    document.getElementById('site-title').value = savedTitle;
-    document.title = savedTitle.replace(/[^\w\s]/g,'').trim() || 'Mi Tablero';
-  }
-
-  loadLinks();
+  await acceptPendingInvites();
+  await loadBoards();
+  await loadLinks();
   subscribeRealtime();
   checkUserLimit();
 }
@@ -85,6 +81,8 @@ function onAuth(user) {
 function onSignOut() {
   currentUser = null;
   links = [];
+  boards = [];
+  currentBoard = null;
   if (realtimeChannel) sb.removeChannel(realtimeChannel);
   hide('dash-view');
   show('auth-view');
@@ -167,10 +165,11 @@ async function checkUserLimit() {
 
 // ── Data ───────────────────────────────────────────────────────────────
 async function loadLinks() {
-  if (!sb) return;
+  if (!sb || !currentBoard) return;
   const { data, error } = await sb
     .from('links')
     .select('*')
+    .eq('board_id', currentBoard.id)
     .order('position', { ascending: true });
 
   if (error) { showToast('Error al cargar links'); return; }
@@ -192,6 +191,7 @@ async function upsertLink(payload) {
       ...payload,
       position: maxPos,
       created_by: currentUser.id,
+      board_id: currentBoard.id,
     });
     if (error) showToast('Error al guardar: ' + error.message);
   }
@@ -224,6 +224,296 @@ function subscribeRealtime() {
       if (!isSaving && !isDragging) loadLinks();
     })
     .subscribe();
+}
+
+
+// ── Boards ─────────────────────────────────────────────────────────────
+async function acceptPendingInvites() {
+  if (!sb) return;
+  const { data: invites } = await sb
+    .from('board_invites')
+    .select('id, board_id, role')
+    .eq('invited_email', currentUser.email)
+    .eq('status', 'pending');
+  if (!invites?.length) return;
+  for (const inv of invites) {
+    await sb.from('board_members').upsert(
+      { board_id: inv.board_id, user_id: currentUser.id, role: inv.role },
+      { onConflict: 'board_id,user_id', ignoreDuplicates: true }
+    );
+    await sb.from('board_invites').update({ status: 'accepted' }).eq('id', inv.id);
+  }
+}
+
+async function loadBoards() {
+  if (!sb) return;
+  const { data } = await sb
+    .from('board_members')
+    .select('role, board:boards(id, name, created_by)')
+    .eq('user_id', currentUser.id);
+  boards = (data || []).map(m => ({ ...m.board, role: m.role }));
+
+  if (boards.length === 0) {
+    await createBoard('Mi Tablero', true);
+    return;
+  }
+  const prev = currentBoard ? boards.find(b => b.id === currentBoard.id) : null;
+  currentBoard = prev || boards[0];
+  renderBoardSwitcher();
+}
+
+async function createBoard(name, isDefault = false) {
+  if (!sb) return;
+  const { data: board, error } = await sb
+    .from('boards').insert({ name, created_by: currentUser.id }).select().single();
+  if (error) { showToast('Error al crear tablero'); return; }
+  await sb.from('board_members').insert({ board_id: board.id, user_id: currentUser.id, role: 'owner' });
+  if (isDefault) {
+    await sb.from('links').update({ board_id: board.id }).is('board_id', null);
+  }
+  await loadBoards();
+  currentBoard = boards.find(b => b.id === board.id) || boards[0];
+  renderBoardSwitcher();
+}
+
+async function switchBoard(board) {
+  currentBoard = board;
+  selectedGroup = null;
+  renderBoardSwitcher();
+  closeBoardDropdown();
+  await loadLinks();
+  subscribeRealtime();
+}
+
+function renderBoardSwitcher() {
+  const nameEl = document.getElementById('board-current-name');
+  if (nameEl && currentBoard) nameEl.textContent = currentBoard.name;
+  const addBtn = document.getElementById('btn-add');
+  if (addBtn) addBtn.style.display = currentBoard?.role === 'viewer' ? 'none' : '';
+}
+
+function toggleBoardDropdown() {
+  const dd = document.getElementById('board-dropdown');
+  dd.classList.contains('hidden') ? openBoardDropdown() : closeBoardDropdown();
+}
+
+function openBoardDropdown() {
+  const dd = document.getElementById('board-dropdown');
+  dd.innerHTML = '';
+  dd.classList.remove('hidden');
+
+  const ROLE_LABEL = { owner: 'Dueño', editor: 'Editor', viewer: 'Solo ver' };
+
+  boards.forEach(b => {
+    const item = document.createElement('div');
+    item.className = 'board-item' + (b.id === currentBoard?.id ? ' active' : '');
+    item.innerHTML = `<span class="board-item-name">${esc(b.name)}</span><span class="board-item-role">${ROLE_LABEL[b.role] || ''}</span>`;
+    item.addEventListener('click', () => switchBoard(b));
+    dd.appendChild(item);
+  });
+
+  const sep = document.createElement('div');
+  sep.className = 'board-dropdown-sep';
+  dd.appendChild(sep);
+
+  if (currentBoard?.role === 'owner') {
+    const renameBtn = document.createElement('button');
+    renameBtn.className = 'board-action-btn';
+    renameBtn.textContent = '✏ Renombrar';
+    renameBtn.addEventListener('click', () => { closeBoardDropdown(); startBoardRename(); });
+    dd.appendChild(renameBtn);
+
+    const membersBtn = document.createElement('button');
+    membersBtn.className = 'board-action-btn';
+    membersBtn.textContent = '👥 Miembros';
+    membersBtn.addEventListener('click', () => { closeBoardDropdown(); openMembersModal(); });
+    dd.appendChild(membersBtn);
+  }
+
+  const newBtn = document.createElement('button');
+  newBtn.className = 'board-action-btn board-new-btn';
+  newBtn.textContent = '+ Nuevo tablero';
+  newBtn.addEventListener('click', () => {
+    closeBoardDropdown();
+    const name = prompt('Nombre del tablero:');
+    if (name?.trim()) createBoard(name.trim());
+  });
+  dd.appendChild(newBtn);
+
+  setTimeout(() => {
+    document.addEventListener('click', function handler(e) {
+      if (!document.getElementById('board-switcher')?.contains(e.target)) {
+        closeBoardDropdown();
+        document.removeEventListener('click', handler);
+      }
+    });
+  }, 0);
+}
+
+function closeBoardDropdown() {
+  document.getElementById('board-dropdown')?.classList.add('hidden');
+}
+
+function startBoardRename() {
+  const nameEl = document.getElementById('board-current-name');
+  const currentName = nameEl.textContent;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'board-rename-input';
+  input.value = currentName;
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  async function commit() {
+    const newName = input.value.trim() || currentName;
+    if (newName !== currentName) {
+      await sb.from('boards').update({ name: newName }).eq('id', currentBoard.id);
+      currentBoard.name = newName;
+      boards = boards.map(b => b.id === currentBoard.id ? { ...b, name: newName } : b);
+    }
+    const span = document.createElement('span');
+    span.id = 'board-current-name';
+    span.textContent = newName;
+    input.replaceWith(span);
+  }
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') { input.value = currentName; commit(); }
+  });
+  input.addEventListener('blur', commit);
+}
+
+// ── Members modal ───────────────────────────────────────────────────────
+async function openMembersModal() {
+  document.getElementById('members-overlay').classList.remove('hidden');
+  document.getElementById('members-board-name').textContent = currentBoard.name;
+  document.getElementById('invite-email').value = '';
+  await loadMembers();
+}
+
+function closeMembersModal() {
+  document.getElementById('members-overlay').classList.add('hidden');
+}
+
+async function loadMembers() {
+  if (!sb) return;
+  const { data: members } = await sb
+    .from('board_members')
+    .select('user_id, role, profile:profiles(email)')
+    .eq('board_id', currentBoard.id);
+
+  const { data: invites } = await sb
+    .from('board_invites')
+    .select('id, invited_email, role')
+    .eq('board_id', currentBoard.id)
+    .eq('status', 'pending');
+
+  const list = document.getElementById('members-list');
+  list.innerHTML = '';
+
+  (members || []).forEach(m => {
+    const email = m.profile?.email || '(usuario)';
+    const row = document.createElement('div');
+    row.className = 'member-row';
+
+    if (m.role === 'owner') {
+      row.innerHTML = `<span class="member-email">${esc(email)}</span><span class="member-role-badge">Dueño</span>`;
+    } else {
+      row.innerHTML = `
+        <span class="member-email">${esc(email)}</span>
+        <select class="member-role-select" data-uid="${m.user_id}">
+          <option value="editor" ${m.role === 'editor' ? 'selected' : ''}>Editor</option>
+          <option value="viewer" ${m.role === 'viewer' ? 'selected' : ''}>Solo ver</option>
+        </select>
+        <button class="member-remove-btn" data-uid="${m.user_id}" title="Quitar">✕</button>`;
+    }
+    list.appendChild(row);
+  });
+
+  list.querySelectorAll('.member-role-select').forEach(sel => {
+    sel.addEventListener('change', async e => {
+      await sb.from('board_members').update({ role: e.target.value })
+        .eq('board_id', currentBoard.id).eq('user_id', e.target.dataset.uid);
+      showToast('Rol actualizado');
+    });
+  });
+
+  list.querySelectorAll('.member-remove-btn').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      await sb.from('board_members').delete()
+        .eq('board_id', currentBoard.id).eq('user_id', e.target.dataset.uid);
+      await loadMembers();
+      showToast('Miembro eliminado');
+    });
+  });
+
+  const pendingSection = document.getElementById('pending-invites-section');
+  const pendingList = document.getElementById('pending-invites-list');
+  pendingList.innerHTML = '';
+
+  if (invites?.length) {
+    pendingSection.classList.remove('hidden');
+    invites.forEach(inv => {
+      const row = document.createElement('div');
+      row.className = 'member-row';
+      row.innerHTML = `
+        <span class="member-email muted">${esc(inv.invited_email)}</span>
+        <span class="member-role-badge muted">${inv.role === 'editor' ? 'Editor' : 'Solo ver'}</span>
+        <button class="member-remove-btn" data-id="${inv.id}" title="Cancelar">✕</button>`;
+      row.querySelector('.member-remove-btn').addEventListener('click', async e => {
+        await sb.from('board_invites').delete().eq('id', e.target.dataset.id);
+        await loadMembers();
+      });
+      pendingList.appendChild(row);
+    });
+  } else {
+    pendingSection.classList.add('hidden');
+  }
+}
+
+async function sendInvite() {
+  const email = document.getElementById('invite-email').value.trim().toLowerCase();
+  const role  = document.getElementById('invite-role').value;
+  if (!email) return;
+
+  const { error } = await sb.from('board_invites').upsert({
+    board_id: currentBoard.id, invited_email: email,
+    invited_by: currentUser.id, role, status: 'pending'
+  }, { onConflict: 'board_id,invited_email' });
+
+  if (error) { showToast('Error: ' + error.message); return; }
+  document.getElementById('invite-email').value = '';
+  showToast(`Invitación enviada a ${email}`);
+  await loadMembers();
+}
+
+let deleteBoardConfirming = false;
+let deleteBoardTimer = null;
+
+async function confirmDeleteBoard() {
+  const btn = document.getElementById('btn-delete-board');
+  if (!deleteBoardConfirming) {
+    deleteBoardConfirming = true;
+    btn.textContent = '¿Confirmar?';
+    deleteBoardTimer = setTimeout(() => {
+      deleteBoardConfirming = false;
+      btn.textContent = 'Eliminar tablero';
+    }, 3000);
+    return;
+  }
+  clearTimeout(deleteBoardTimer);
+  deleteBoardConfirming = false;
+  btn.textContent = 'Eliminar tablero';
+  await sb.from('boards').delete().eq('id', currentBoard.id);
+  closeMembersModal();
+  currentBoard = null;
+  await loadBoards();
+  if (boards.length > 0) await switchBoard(boards[0]);
+  else { links = []; render(); }
+  showToast('Tablero eliminado');
 }
 
 // ── Render ─────────────────────────────────────────────────────────────
@@ -400,23 +690,24 @@ function createTile(link, index = 0) {
   tile.style.left = pos.x + 'px';
   tile.style.top  = pos.y + 'px';
 
+  const canEdit = currentBoard?.role !== 'viewer';
   tile.innerHTML = isNote ? `
     <div class="tile-actions">
-      <button class="tile-btn" title="Editar" tabindex="-1">✏️</button>
+      ${canEdit ? '<button class="tile-btn" title="Editar" tabindex="-1">✏️</button>' : ''}
     </div>
     <div class="tile-pin">📌</div>
     <div class="tile-name">${esc(link.name)}</div>
     ${link.description ? `<div class="tile-note-body">${esc(link.description)}</div>` : ''}
   ` : `
     <div class="tile-actions">
-      <button class="tile-btn" title="Editar" tabindex="-1">✏️</button>
+      ${canEdit ? '<button class="tile-btn" title="Editar" tabindex="-1">✏️</button>' : ''}
     </div>
     <div class="tile-icon">${renderIcon(link.icon)}</div>
     <div class="tile-name">${esc(link.name)}</div>
     ${link.description ? `<div class="tile-desc">${esc(link.description)}</div>` : ''}
   `;
 
-  tile.querySelector('.tile-btn').addEventListener('click', e => {
+  tile.querySelector('.tile-btn')?.addEventListener('click', e => {
     e.preventDefault();
     e.stopPropagation();
     openModal(link.id);
@@ -657,7 +948,7 @@ function initTileDrag(tile, link, isNote) {
 }
 
 async function savePosition(id, x, y) {
-  if (!sb) return;
+  if (!sb || currentBoard?.role === 'viewer') return;
   await sb.from('links').update({ pos_x: x, pos_y: y }).eq('id', id);
 }
 
@@ -820,11 +1111,6 @@ document.getElementById('search').addEventListener('input', e => {
   render();
 });
 
-document.getElementById('site-title').addEventListener('input', e => {
-  localStorage.setItem(TITLE_KEY, e.target.value);
-  document.title = e.target.value.replace(/[^\w\s]/g,'').trim() || 'Mi Tablero';
-});
-
 // Password toggle
 const EYE_OPEN = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
 const EYE_OFF  = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-10-7-10-7a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
@@ -847,6 +1133,21 @@ document.addEventListener('keydown', e => {
     openModal(null);
   }
 });
+
+// Board switcher
+document.getElementById('board-current-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  toggleBoardDropdown();
+});
+
+// Members modal
+document.getElementById('btn-send-invite').addEventListener('click', sendInvite);
+document.getElementById('invite-email').addEventListener('keydown', e => { if (e.key === 'Enter') sendInvite(); });
+document.getElementById('btn-close-members').addEventListener('click', closeMembersModal);
+document.getElementById('members-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('members-overlay')) closeMembersModal();
+});
+document.getElementById('btn-delete-board').addEventListener('click', confirmDeleteBoard);
 
 // ── Start ──────────────────────────────────────────────────────────────
 init();

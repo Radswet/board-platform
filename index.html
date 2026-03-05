@@ -75,7 +75,13 @@
   </div>
 
   <header>
-    <input type="text" id="site-title" value="✦ Mi Tablero" maxlength="40" title="Haz clic para editar el título">
+    <div class="board-switcher" id="board-switcher">
+      <button class="board-current-btn" id="board-current-btn">
+        <span id="board-current-name">Mi Tablero</span>
+        <svg class="board-chevron" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="board-dropdown hidden" id="board-dropdown"></div>
+    </div>
     <div class="controls">
       <span class="user-limit-badge hidden" id="user-limit-badge"></span>
       <span class="user-badge" id="user-badge">...</span>
@@ -153,6 +159,37 @@
 </div>
 
 <div id="toast"></div>
+
+<!-- ── MEMBERS MODAL ──────────────────────────────────────────────── -->
+<div class="overlay hidden" id="members-overlay">
+  <div class="modal members-modal" role="dialog" aria-modal="true">
+    <h2>Miembros · <span id="members-board-name"></span></h2>
+
+    <div id="members-list" class="members-list"></div>
+
+    <div class="field invite-field">
+      <label>Invitar por email</label>
+      <div class="invite-row">
+        <input type="email" id="invite-email" placeholder="correo@ejemplo.com" autocomplete="off">
+        <select id="invite-role">
+          <option value="editor">Editor</option>
+          <option value="viewer">Solo ver</option>
+        </select>
+        <button id="btn-send-invite">Invitar</button>
+      </div>
+    </div>
+
+    <div id="pending-invites-section" class="hidden">
+      <p class="section-label">Pendientes</p>
+      <div id="pending-invites-list"></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="danger" id="btn-delete-board">Eliminar tablero</button>
+      <button id="btn-close-members">Cerrar</button>
+    </div>
+  </div>
+</div>
 
 <!-- ── SCRIPT ─────────────────────────────────────────────────────────── -->
 <script src="src/app.js"></script>

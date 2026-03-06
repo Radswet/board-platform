@@ -19,6 +19,7 @@ let links = [];
 let currentUser = null;
 let editingId = null;
 let selectedColor = COLORS[0];
+let selectedOpacity = 1;
 let isDragging = false;
 let searchQuery = '';
 let realtimeChannel = null;
@@ -692,6 +693,7 @@ async function renameGroup(oldName, newName) {
 function createTile(link, index = 0) {
   const isNote = !link.url;
   const bg = link.color || COLORS[0];
+  const opacity = link.opacity ?? 1;
   const pos = (link.pos_x != null && link.pos_y != null)
     ? { x: link.pos_x, y: link.pos_y }
     : autoPos(index);
@@ -700,6 +702,7 @@ function createTile(link, index = 0) {
   tile.className = 'tile' + (isNote ? ' tile-note' : '');
   tile.dataset.id = link.id;
   tile.style.background = bg;
+  tile.style.opacity = opacity;
   tile.style.color = isLight(bg) ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.92)';
   tile.style.left = pos.x + 'px';
   tile.style.top  = pos.y + 'px';
@@ -755,6 +758,7 @@ function openModal(id) {
     document.getElementById('f-url').value = link.url;
     document.getElementById('f-desc').value = link.description || '';
     selectedColor = link.color || COLORS[0];
+    selectedOpacity = link.opacity ?? 1;
     document.getElementById('f-group').value = link.group_name || '';
     delBtn.classList.remove('hidden');
   } else {
@@ -764,6 +768,7 @@ function openModal(id) {
     document.getElementById('f-url').value = '';
     document.getElementById('f-desc').value = '';
     selectedColor = COLORS[Math.floor(Math.random() * COLORS.length)];
+    selectedOpacity = 1;
     document.getElementById('f-group').value = '';
     delBtn.classList.add('hidden');
   }
@@ -773,6 +778,15 @@ function openModal(id) {
   document.getElementById('f-icon').dataset.userSet = '0';
 
   buildPalette();
+
+  const opacitySlider = document.getElementById('f-opacity');
+  const opacityLabel = document.getElementById('opacity-value');
+  opacitySlider.value = Math.round(selectedOpacity * 100);
+  opacityLabel.textContent = opacitySlider.value + '%';
+  opacitySlider.oninput = () => {
+    selectedOpacity = opacitySlider.value / 100;
+    opacityLabel.textContent = opacitySlider.value + '%';
+  };
 
   // Populate group suggestions
   const dl = document.getElementById('group-suggestions');
@@ -843,7 +857,7 @@ async function saveLink() {
   setDisabled('btn-save', true, 'Guardando...');
 
   const group = val('f-group');
-  const payload = { icon, name, url, description: desc, color: selectedColor, group_name: group };
+  const payload = { icon, name, url, description: desc, color: selectedColor, opacity: selectedOpacity, group_name: group };
   if (editingId) payload.id = editingId;
 
   await upsertLink(payload);

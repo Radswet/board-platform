@@ -355,6 +355,13 @@ header {
   border: none;
 }
 
+#f-opacity {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+  margin-top: 4px;
+}
+
 .modal-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 
 /* ── Note popup ───────────────────────────────────────────────────────── */

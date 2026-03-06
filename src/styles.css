@@ -355,11 +355,21 @@ header {
   border: none;
 }
 
+.opacity-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
 #f-opacity {
-  width: 100%;
+  width: 120px;
   accent-color: var(--accent);
   cursor: pointer;
-  margin-top: 4px;
+}
+#opacity-value {
+  font-size: 0.78rem;
+  color: var(--muted);
+  min-width: 34px;
 }
 
 .modal-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 24px; }

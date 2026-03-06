@@ -421,9 +421,7 @@ function closeMembersModal() {
 async function loadMembers() {
   if (!sb) return;
   const { data: members } = await sb
-    .from('board_members')
-    .select('user_id, role, profile:profiles(email)')
-    .eq('board_id', currentBoard.id);
+    .rpc('get_board_members', { p_board_id: currentBoard.id });
 
   const { data: invites } = await sb
     .from('board_invites')
@@ -435,7 +433,7 @@ async function loadMembers() {
   list.innerHTML = '';
 
   (members || []).forEach(m => {
-    const email = m.profile?.email || '(usuario)';
+    const email = m.email || '(usuario)';
     const row = document.createElement('div');
     row.className = 'member-row';
 

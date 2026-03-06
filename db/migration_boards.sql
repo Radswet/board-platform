@@ -34,14 +34,7 @@ CREATE TABLE IF NOT EXISTS public.board_invites (
 
 ALTER TABLE public.links ADD COLUMN IF NOT EXISTS board_id UUID REFERENCES public.boards(id) ON DELETE CASCADE;
 
--- ── 2. Profiles view (expone emails de auth.users via PostgREST) ──────
-
-CREATE OR REPLACE VIEW public.profiles AS
-  SELECT id, email FROM auth.users;
-
-GRANT SELECT ON public.profiles TO authenticated;
-
--- ── 3. Helper functions ───────────────────────────────────────────────
+-- ── 2. Helper functions ───────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION public.my_role_in_board(p_board_id UUID)
 RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER AS $$
@@ -52,6 +45,15 @@ $$;
 CREATE OR REPLACE FUNCTION public.my_board_ids()
 RETURNS SETOF UUID LANGUAGE sql STABLE SECURITY DEFINER AS $$
   SELECT board_id FROM public.board_members WHERE user_id = auth.uid();
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_board_members(p_board_id UUID)
+RETURNS TABLE(user_id UUID, role TEXT, email TEXT)
+LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT bm.user_id, bm.role, u.email
+  FROM public.board_members bm
+  JOIN auth.users u ON u.id = bm.user_id
+  WHERE bm.board_id = p_board_id;
 $$;
 
 -- ── 3. RLS boards ─────────────────────────────────────────────────────

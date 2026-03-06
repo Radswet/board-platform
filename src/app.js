@@ -222,18 +222,21 @@ function subscribeRealtime() {
 // ── Boards ─────────────────────────────────────────────────────────────
 async function acceptPendingInvites() {
   if (!sb) return;
-  const { data: invites } = await sb
+  const { data: invites, error: invErr } = await sb
     .from('board_invites')
     .select('id, board_id, role')
     .eq('invited_email', currentUser.email)
     .eq('status', 'pending');
+  console.log('[invites] data:', invites, 'error:', invErr);
   if (!invites?.length) return;
   for (const inv of invites) {
-    await sb.from('board_members').upsert(
+    const { error: memberErr } = await sb.from('board_members').upsert(
       { board_id: inv.board_id, user_id: currentUser.id, role: inv.role },
       { onConflict: 'board_id,user_id', ignoreDuplicates: true }
     );
-    await sb.from('board_invites').update({ status: 'accepted' }).eq('id', inv.id);
+    console.log('[board_members upsert] error:', memberErr);
+    const { error: updateErr } = await sb.from('board_invites').update({ status: 'accepted' }).eq('id', inv.id);
+    console.log('[board_invites update] error:', updateErr);
   }
 }
 

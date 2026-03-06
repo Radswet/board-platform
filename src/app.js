@@ -232,8 +232,10 @@ async function acceptPendingInvites() {
     const { error: memberErr } = await sb.from('board_members').insert(
       { board_id: inv.board_id, user_id: currentUser.id, role: inv.role }
     );
+    console.log('[member insert] uid:', currentUser.id, 'board:', inv.board_id, 'error:', memberErr);
     if (!memberErr || memberErr.code === '23505') {
-      await sb.from('board_invites').update({ status: 'accepted' }).eq('id', inv.id);
+      const { error: acceptErr } = await sb.from('board_invites').update({ status: 'accepted' }).eq('id', inv.id);
+      console.log('[invite accept] error:', acceptErr);
     }
   }
 }

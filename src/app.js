@@ -429,7 +429,7 @@ async function loadMembers() {
           <option value="editor" ${m.role === 'editor' ? 'selected' : ''}>Editor</option>
           <option value="viewer" ${m.role === 'viewer' ? 'selected' : ''}>Solo ver</option>
         </select>
-        <button class="member-remove-btn" data-uid="${m.user_id}" title="Quitar">✕</button>`;
+        <button class="member-remove-btn" data-uid="${m.user_id}" data-email="${esc(m.email)}" title="Quitar">✕</button>`;
     }
     list.appendChild(row);
   });
@@ -454,8 +454,11 @@ async function loadMembers() {
         timer = setTimeout(() => { confirming = false; btn.textContent = '✕'; btn.classList.remove('danger'); }, 3000);
       } else {
         clearTimeout(timer);
+        const memberEmail = e.target.dataset.email;
         await sb.from('board_members').delete()
           .eq('board_id', currentBoard.id).eq('user_id', uid);
+        await sb.from('board_invites').delete()
+          .eq('board_id', currentBoard.id).eq('invited_email', memberEmail);
         await loadMembers();
         showToast('Miembro eliminado');
       }

@@ -75,7 +75,6 @@ async function onAuth(user) {
   await loadBoards();
   await loadLinks();
   subscribeRealtime();
-  checkUserLimit();
 }
 
 function onSignOut() {
@@ -155,24 +154,6 @@ function showAuthMsg(msg, type) {
   el.classList.remove('hidden');
 }
 
-// ── User limit check ───────────────────────────────────────────────────
-async function checkUserLimit() {
-  if (!sb) return;
-  const { count } = await sb.from('profiles').select('*', { count: 'exact', head: true });
-  if (count === null) return;
-
-  const badge = document.getElementById('user-limit-badge');
-  const MAX = 5;
-  badge.textContent = `👤 ${count}/${MAX} usuarios`;
-  badge.classList.remove('hidden', 'warn', 'full');
-
-  if (count >= MAX) {
-    badge.classList.add('full');
-    showToast(`⚠️ Límite alcanzado: ${MAX}/${MAX} usuarios registrados`);
-  } else if (count >= MAX - 1) {
-    badge.classList.add('warn');
-  }
-}
 
 // ── Data ───────────────────────────────────────────────────────────────
 async function loadLinks() {

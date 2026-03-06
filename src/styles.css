@@ -187,17 +187,6 @@ header {
   white-space: nowrap;
 }
 
-.user-limit-badge {
-  font-size: 0.75rem;
-  padding: 5px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--muted);
-  white-space: nowrap;
-}
-.user-limit-badge.warn { background: #2a1a00; border-color: #5a3a00; color: #fbbf24; }
-.user-limit-badge.full { background: #2a0a0a; border-color: #5a1a1a; color: #f87171; }
 
 .search-wrap { margin-bottom: 20px; }
 

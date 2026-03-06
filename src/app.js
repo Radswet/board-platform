@@ -229,11 +229,10 @@ async function acceptPendingInvites() {
     .eq('status', 'pending');
   if (!invites?.length) return;
   for (const inv of invites) {
-    const { error: memberErr } = await sb.from('board_members').upsert(
-      { board_id: inv.board_id, user_id: currentUser.id, role: inv.role },
-      { onConflict: 'board_id,user_id', ignoreDuplicates: true }
+    const { error: memberErr } = await sb.from('board_members').insert(
+      { board_id: inv.board_id, user_id: currentUser.id, role: inv.role }
     );
-    if (!memberErr) {
+    if (!memberErr || memberErr.code === '23505') {
       await sb.from('board_invites').update({ status: 'accepted' }).eq('id', inv.id);
     }
   }

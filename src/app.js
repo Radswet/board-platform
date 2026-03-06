@@ -701,8 +701,7 @@ function createTile(link, index = 0) {
   const tile = document.createElement('div');
   tile.className = 'tile' + (isNote ? ' tile-note' : '');
   tile.dataset.id = link.id;
-  tile.style.background = bg;
-  tile.style.opacity = opacity;
+  tile.style.background = hexWithOpacity(bg, opacity);
   tile.style.color = isLight(bg) ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.92)';
   tile.style.left = pos.x + 'px';
   tile.style.top  = pos.y + 'px';
@@ -1048,6 +1047,14 @@ function isLight(hex) {
   const g = parseInt(hex.slice(3,5),16);
   const b = parseInt(hex.slice(5,7),16);
   return (0.299*r + 0.587*g + 0.114*b) > 155;
+}
+
+function hexWithOpacity(hex, alpha) {
+  if (alpha >= 1 || !hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return hex;
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
 }
 
 function getDemoLinks() {

@@ -729,7 +729,15 @@ function createTile(link, index = 0) {
     openModal(link.id);
   });
 
-  initTileDrag(tile, link, isNote);
+  if (isMobile()) {
+    tile.addEventListener('click', e => {
+      if (e.target.closest('.tile-btn')) return;
+      if (isNote) showNote(link);
+      else if (link.url) window.open(link.url, '_blank', 'noopener,noreferrer');
+    });
+  } else {
+    initTileDrag(tile, link, isNote);
+  }
   return tile;
 }
 

@@ -315,6 +315,7 @@ function showExperimentos() {
   document.getElementById('btn-add').classList.add('hidden');
   document.getElementById('search').closest('.search-wrap')?.classList.add('hidden');
   document.getElementById('group-tabs').classList.add('hidden');
+  loadSessions();
 }
 
 function showTablero() {

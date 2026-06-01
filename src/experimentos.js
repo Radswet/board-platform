@@ -22,7 +22,7 @@ async function initExperimentos() {
 async function loadSessions() {
   if (!sb) { renderList(); return; }
   const { data, error } = await sb.from('sesiones')
-    .select('id,filename,uploaded_at,distancia_cm,iluminancia_lux,bit_ms,ber_mv,ber_M,ber_C,ber_Y,ber_R,n_bits,etiqueta,notas,condicion_luz')
+    .select('id,filename,uploaded_at,distancia_cm,iluminancia_lux,bit_ms,ber_mv,ber_m,ber_c,ber_y,ber_r,n_bits,etiqueta,notas,condicion_luz')
     .order('uploaded_at', { ascending: false });
   if (!error) sessions = data || [];
   renderList();
@@ -66,9 +66,9 @@ function renderList() {
 }
 
 function fmtChannelBer(s) {
-  return ['M','C','Y','R'].map(ch => {
+  return ['m','c','y','r'].map(ch => {
     const v = s[`ber_${ch}`];
-    return v != null ? `<span class="ch-ber ch-${ch.toLowerCase()}">${ch}:${(v*100).toFixed(0)}%</span>` : '';
+    return v != null ? `<span class="ch-ber ch-${ch}">${ch.toUpperCase()}:${(v*100).toFixed(0)}%</span>` : '';
   }).join('');
 }
 
@@ -125,7 +125,7 @@ function renderCharts(s) {
   });
 
   // ── BER por canal ──
-  const channels = ['M','C','Y','R'];
+  const channels = ['m','c','y','r'];
   const ctxBer = document.getElementById('chart-ber').getContext('2d');
   berChart = new Chart(ctxBer, {
     type: 'bar',

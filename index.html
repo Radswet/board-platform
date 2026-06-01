@@ -121,26 +121,7 @@
         <div>Arrastra un JSON aquí o haz click para seleccionar</div>
       </div>
 
-      <div class="exp-table-wrap">
-        <table class="exp-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Fecha</th>
-              <th>Etiqueta</th>
-              <th>Dist.</th>
-              <th>Lux</th>
-              <th>Bit ms</th>
-              <th>Bits</th>
-              <th>BER</th>
-              <th>Por canal</th>
-            </tr>
-          </thead>
-          <tbody id="sessions-tbody">
-            <tr><td colspan="8" class="exp-empty">Cargando...</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <div id="sessions-container"></div>
     </div>
 
     <!-- Detalle de sesión -->
@@ -167,6 +148,26 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- ── GROUP EDITOR MODAL ─────────────────────────────────────────────── -->
+<div class="overlay hidden" id="group-editor-modal">
+  <div class="modal">
+    <h2>Contexto del experimento</h2>
+    <input type="hidden" id="ge-key">
+    <div class="field">
+      <label>Título</label>
+      <input type="text" id="ge-title" placeholder="Ej: Exp 1-ext — OOK 4 canales">
+    </div>
+    <div class="field">
+      <label>Descripción / Condiciones del setup</label>
+      <textarea id="ge-description" rows="5" placeholder="Describe el setup: distancia a la pared, posición de la repisa, condiciones de luz, dispositivos, observaciones generales..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button onclick="document.getElementById('group-editor-modal').classList.add('hidden')">Cancelar</button>
+      <button class="primary" onclick="saveGroupEditor()">Guardar</button>
+    </div>
   </div>
 </div>
 

@@ -808,6 +808,39 @@ header {
 }
 .exp-upload-btn { cursor: pointer; }
 
+/* Experiment groups */
+.exp-group { margin-bottom: 28px; }
+
+.group-header {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px 12px 0 0;
+  padding: 14px 16px;
+  border-bottom: none;
+}
+.group-header-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.group-title   { font-weight: 700; font-size: 0.95rem; flex: 1; }
+.group-count   { font-size: 0.75rem; color: var(--muted); background: rgba(255,255,255,0.06); padding: 3px 8px; border-radius: 6px; }
+.group-edit-btn { font-size: 0.75rem; padding: 4px 10px; }
+.group-description {
+  margin-top: 10px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.exp-group .exp-table-wrap {
+  border-radius: 0 0 12px 12px;
+  border-top: none;
+}
+
 /* Drop zone */
 .drop-zone {
   border: 2px dashed var(--border);

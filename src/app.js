@@ -76,6 +76,7 @@ async function onAuth(user) {
   await loadBoards();
   await loadLinks();
   subscribeRealtime();
+  initExperimentos();
 }
 
 function onSignOut() {

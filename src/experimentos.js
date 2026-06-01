@@ -18,6 +18,19 @@ async function initExperimentos() {
   await loadSessions();
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function sessionId(s) {
+  // extrae YYYYMMDD_HHMMSS del filename → devuelve YYYYMMDD_HHMM
+  const m = (s.filename || '').match(/(\d{8})_(\d{4})/);
+  return m ? `${m[1]}_${m[2]}` : s.id?.slice(0, 8) || '—';
+}
+
+function dateFromFilename(filename) {
+  const m = (filename || '').match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})/);
+  if (!m) return null;
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
 // ── Load from Supabase ────────────────────────────────────────────────────────
 async function loadSessions() {
   if (!sb) { renderList(); return; }
@@ -44,11 +57,13 @@ function renderList() {
   }
 
   tbody.innerHTML = filtered.map(s => {
-    const fecha = s.uploaded_at ? new Date(s.uploaded_at).toLocaleDateString('es-CL') : '—';
+    const sid  = sessionId(s);
+    const fecha = dateFromFilename(s.filename) || (s.uploaded_at ? new Date(s.uploaded_at).toLocaleDateString('es-CL') : '—');
     const ber   = s.ber_mv != null ? (s.ber_mv * 100).toFixed(1) + '%' : '—';
     const berClass = s.ber_mv === 0 ? 'ber-ok' : s.ber_mv > 0.1 ? 'ber-bad' : 'ber-mid';
     return `
       <tr class="session-row" data-id="${s.id}">
+        <td class="session-id">${sid}</td>
         <td>${fecha}</td>
         <td class="session-label">${s.etiqueta || s.filename || '—'}</td>
         <td>${s.distancia_cm != null ? s.distancia_cm + ' cm' : '—'}</td>

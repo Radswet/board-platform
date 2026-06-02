@@ -967,11 +967,15 @@ header {
 
 /* Meta cards */
 .meta-cards {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
   margin-bottom: 20px;
 }
+.meta-section { margin-bottom: 16px; }
+.meta-section-title {
+  font-size: 0.78rem; font-weight: 700; color: var(--text);
+  margin: 0 0 8px 2px; letter-spacing: 0.3px;
+}
+.meta-cards-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.meta-mono { font-family: monospace; font-size: 0.92rem; word-break: break-all; }
 .meta-card {
   background: var(--surface);
   border: 1px solid var(--border);

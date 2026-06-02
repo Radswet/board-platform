@@ -380,31 +380,75 @@ async function openSession(id) {
   document.getElementById('exp-etiqueta-input').value = s.etiqueta || '';
 }
 
+const dv   = v => (v == null || v === '') ? '—' : v;
+const card = (val, unit, key, cls = '') =>
+  `<div class="meta-card"><div class="meta-val ${cls}">${dv(val)}${unit && val != null ? `<span class="meta-unit">${unit}</span>` : ''}</div><div class="meta-key">${key}</div></div>`;
+const section = (title, cards) => `<div class="meta-section"><div class="meta-section-title">${title}</div><div class="meta-cards-row">${cards}</div></div>`;
+
+// Con/sin repisa según la fecha del archivo (ver README de datos)
+function setupRepisa(s) {
+  const m = (s.filename || '').match(/(\d{8})_/);
+  if (!m) return null;
+  return +m[1] >= 20260601 ? 'Sin repisa · 45 cm' : 'Con repisa · 55 cm';
+}
+
 function renderMetaCards(s, type) {
   const d = s.data || {};
-  let cards = '';
+  let html = '';
+
   if (type === 'caracterizacion') {
-    cards = `
-      <div class="meta-card"><div class="meta-val">${s.distancia_cm ?? '—'}<span class="meta-unit">cm</span></div><div class="meta-key">Distancia</div></div>
-      <div class="meta-card"><div class="meta-val">${s.iluminancia_lux ?? '—'}<span class="meta-unit">lux</span></div><div class="meta-key">Iluminancia</div></div>
-      <div class="meta-card"><div class="meta-val">${d.flash_hz ?? '—'}<span class="meta-unit">Hz</span></div><div class="meta-key">Flash Hz</div></div>
-      <div class="meta-card"><div class="meta-val">${d.scan_time_ms != null ? d.scan_time_ms.toFixed(2) : '—'}<span class="meta-unit">ms</span></div><div class="meta-key">Scan time</div></div>
-      <div class="meta-card"><div class="meta-val">${d.throughput_1ch != null ? d.throughput_1ch.toFixed(1) : '—'}<span class="meta-unit">bps</span></div><div class="meta-key">Throughput 1ch</div></div>
-      <div class="meta-card"><div class="meta-val">${d.throughput_4ch != null ? d.throughput_4ch.toFixed(1) : '—'}<span class="meta-unit">bps</span></div><div class="meta-key">Throughput 4ch</div></div>`;
+    html =
+      section('📡 Transmisor (TX)',
+        card(d.tx_dispositivo || d.tx, '', 'Dispositivo') +
+        card(d.flash_hz, 'Hz', 'Flash')) +
+      section('📷 Receptor · Muestreo',
+        card(d.rx_dispositivo || d.rx, '', 'Cámara') +
+        card(d.cam_fps, 'fps', 'FPS cámara') +
+        card(d.scan_time_ms != null ? d.scan_time_ms.toFixed(2) : null, 'ms', 'Scan time') +
+        card(d.roi_x0 != null ? `${d.roi_x0}–${d.roi_x1}` : null, 'px', 'ROI x') +
+        card(d.threshold != null ? d.threshold.toFixed(1) : null, '', 'Umbral')) +
+      section('💡 Condiciones',
+        card(s.distancia_cm, 'cm', 'Distancia') +
+        card(s.iluminancia_lux, 'lux', 'Iluminancia')) +
+      section('📊 Resultado',
+        card(d.throughput_1ch != null ? d.throughput_1ch.toFixed(1) : null, 'bps', 'Throughput 1ch') +
+        card(d.throughput_4ch != null ? d.throughput_4ch.toFixed(1) : null, 'bps', 'Throughput 4ch') +
+        card(d.num_cycles, '', 'Ciclos') +
+        card(d.num_crossings, '', 'Crossings'));
   } else {
-    const ber = s.ber_mv != null ? `${(s.ber_mv*100).toFixed(2)}%` : '—';
+    const ber    = s.ber_mv != null ? `${(s.ber_mv*100).toFixed(2)}%` : '—';
     const berCls = s.ber_mv === 0 ? 'ber-ok' : s.ber_mv > 0.1 ? 'ber-bad' : 'ber-mid';
-    cards = `
-      <div class="meta-card"><div class="meta-val">${s.distancia_cm ?? '—'}<span class="meta-unit">cm</span></div><div class="meta-key">Distancia</div></div>
-      <div class="meta-card"><div class="meta-val">${s.iluminancia_lux ?? '—'}<span class="meta-unit">lux</span></div><div class="meta-key">Iluminancia</div></div>
-      <div class="meta-card"><div class="meta-val">${s.bit_ms ?? '—'}<span class="meta-unit">ms</span></div><div class="meta-key">Bit period</div></div>
-      <div class="meta-card"><div class="meta-val">${s.data?.actual_fps ?? '—'}<span class="meta-unit">fps</span></div><div class="meta-key">FPS real</div></div>
-      <div class="meta-card"><div class="meta-val ${berCls}">${ber}</div><div class="meta-key">BER mayoría</div></div>
-      <div class="meta-card"><div class="meta-val">${s.n_bits ?? '—'}</div><div class="meta-key">Bits totales</div></div>
-      <div class="meta-card"><div class="meta-val">${s.data?.tx ?? '—'}</div><div class="meta-key">TX</div></div>
-      <div class="meta-card"><div class="meta-val">${s.data?.rx ?? '—'}</div><div class="meta-key">RX</div></div>`;
+    const bps    = s.bit_ms ? (1000 / s.bit_ms).toFixed(2) : null;
+    const scanFr = d.actual_fps ? (1000 / d.actual_fps).toFixed(1) : null;
+    const nPre   = d.preambles?.length ?? s.n_preambles;
+
+    html =
+      section('📡 Transmisor (TX)',
+        card(d.tx, '', 'Dispositivo') +
+        card(s.brillo_tx_pct ?? d.brillo_tx_pct, '%', 'Brillo pantalla') +
+        card(s.bit_ms, 'ms', 'Bit period') +
+        card(bps, 'bps', 'Velocidad') +
+        card(d.expected_bits, '', 'Patrón', 'meta-mono')) +
+      section('📷 Receptor · Muestreo',
+        card(d.rx, '', 'Cámara') +
+        card(d.actual_fps, 'fps', 'FPS real') +
+        card(d.frames_per_bit, '', 'Frames/bit') +
+        card(scanFr, 'ms', 'Scan/frame') +
+        card(d.cam_exposure_us, 'µs', 'Exposición') +
+        card(d.cam_gain, '', 'Ganancia') +
+        card(d.aec_locked != null ? (d.aec_locked ? 'Sí' : 'No') : null, '', 'AEC lock')) +
+      section('💡 Condiciones',
+        card(s.distancia_cm, 'cm', 'Distancia') +
+        card(s.iluminancia_lux, 'lux', 'Iluminancia') +
+        card(setupRepisa(s), '', 'Setup físico') +
+        card(d.condicion_luz, '', 'Nota de luz', 'meta-mono')) +
+      section('📊 Resultado',
+        card(ber, '', 'BER mayoría', berCls) +
+        card(s.n_bits, '', 'Bits totales') +
+        card(d.n_sequences, '', 'Secuencias') +
+        card(nPre, '', 'Preámbulos'));
   }
-  document.getElementById('meta-cards').innerHTML = cards;
+  document.getElementById('meta-cards').innerHTML = html;
 }
 
 function renderCharts(s, type) {

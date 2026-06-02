@@ -46,20 +46,84 @@ function detectType(s) {
   return 'unknown';
 }
 
+// Grupo = etiqueta completa "expXX / <folder>" → cada folder/sweep es su grupo.
 function groupKey(s) {
-  const etiq = s.etiqueta || '';
-  const m    = etiq.match(/^([^/]+)/);
-  return m ? m[1].trim() : 'otros';
+  const e = (s.etiqueta || '').replace(/\s*\/\s*/g, ' / ').trim();
+  return e || 'otros';
+}
+// parte tras "expXX / " = código del folder
+function sweepCode(key) {
+  const p = key.split('/');
+  return (p.length > 1 ? p.slice(1).join('/') : p[0]).trim();
+}
+
+// ── Catálogo desde el README de datos ───────────────────────────────────────────
+// folder code → {cat, res}  (res = resumen del resultado)
+const SWEEP_INFO = {
+  '2.5bps_400ms_260lux_b100':       { cat:'valid',   res:'Blooming a 20–25 cm; resto BER=0.' },
+  '2.5bps_400ms_260lux_b75':        { cat:'valid',   res:'BER=0 en todo el rango.' },
+  '2.5bps_400ms_370lux_b100_r2':    { cat:'valid',   res:'Revalidado (sin el bug de BER).' },
+  '2.5bps_400ms_370lux_b75':        { cat:'valid',   res:'BER=0; sin blooming.' },
+  '2.5bps_400ms_900lux_b75':        { cat:'valid',   res:'Blooming a 10–30 cm por alta lux.' },
+  '3.3bps_300ms_260lux_b75':        { cat:'valid',   res:'n=1 por punto.' },
+  '3.3bps_300ms_370lux_b75':        { cat:'valid',   res:'n=1 por punto.' },
+  '5.0bps_200ms_260lux_b75':        { cat:'valid',   res:'n=1 por punto; zona muerta a 50 cm (H10).' },
+  '5.0bps_200ms_370lux_b75':        { cat:'valid',   res:'n=1 por punto.' },
+  '2.5bps_400ms_260lux_b100_prbs7': { cat:'special', res:'Secuencia PRBS7 (no 1010…). Falló por DC wander (H9).' },
+  'blooming_test_20cm_260lux_b75':  { cat:'special', res:'20 cm fijo, varias velocidades. Aísla blooming vs phase slipping (H11).' },
+  'nuevo_setup':                    { cat:'special', res:'Sin repisa, con AEC registrado. Validación del nuevo setup (H14).' },
+  'historico':                      { cat:'hist',    res:'Archivos sueltos pre-organización / sweeps sin lux.' },
+  'legacy':                         { cat:'hist',    res:'Datos legacy.' },
+};
+const NAME_MAP = {
+  'blooming_test_20cm_260lux_b75': 'Blooming test · 20 cm · 260 lux · b75',
+  'nuevo_setup':                   'Nuevo setup (sin repisa · AEC)',
+  'historico':                     'Histórico (pre-organización)',
+  'legacy':                        'Legacy',
+};
+const V_BY_MS = { 400:'V1', 300:'V2', 200:'V3' };
+
+// parsea "2.5bps_400ms_260lux_b100[_sufijo]"
+function parseSweep(code) {
+  const m = code.match(/^([\d.]+)bps_(\d+)ms_(\d+)lux_b(\d+)(?:_(.+))?$/);
+  if (!m) return null;
+  return { bps:m[1], ms:+m[2], lux:+m[3], brillo:+m[4], suffix:m[5] || '' };
 }
 
 function groupTitle(key) {
-  const map = {
-    'exp1_caracterizacion': 'Exp 1 — Caracterización Rolling Shutter',
-    'exp1ext_ook':          'Exp 1-ext — OOK 4 canales HSV',
-    'exp1ext_bpsk':         'Exp 1-ext — BPSK Rolling Shutter',
-    'experimentos':         'Experimentos (legacy)',
-  };
-  return map[key] || key;
+  const code = sweepCode(key);
+  const sw = parseSweep(code);
+  if (sw) {
+    const v   = V_BY_MS[sw.ms] ? `${V_BY_MS[sw.ms]} · ` : '';
+    const suf = sw.suffix ? ` · ${sw.suffix}` : '';
+    return `${v}${sw.bps} bps · ${sw.ms} ms · ${sw.lux} lux · b${sw.brillo}${suf}`;
+  }
+  return NAME_MAP[code] || code || key;
+}
+
+function groupDefaultDesc(key) {
+  const code = sweepCode(key);
+  const sw   = parseSweep(code);
+  const info = SWEEP_INFO[code];
+  const parts = [];
+  if (sw) parts.push(`bit_ms=${sw.ms} (${sw.bps} bps) · ~${sw.lux} lux · brillo TX ${sw.brillo}%.`);
+  if (info?.res) parts.push(info.res);
+  return parts.join(' ');
+}
+
+// ── Categorías (bandas) ─────────────────────────────────────────────────────────
+const CAT_ORDER = ['caracterizacion','valid','special','hist','other'];
+const CAT_LABEL = {
+  caracterizacion: 'Caracterización · Rolling Shutter',
+  valid:           'Sweeps OOK válidos · datos de tesis',
+  special:         'Experimentos especiales',
+  hist:            'Histórico',
+  other:           'Otros',
+};
+function groupCategory(key, list) {
+  if (detectType(list[0]) === 'caracterizacion') return 'caracterizacion';
+  const info = SWEEP_INFO[sweepCode(key)];
+  return info ? info.cat : 'other';
 }
 
 // ── Column defs ────────────────────────────────────────────────────────────────
@@ -69,32 +133,31 @@ const COLUMNS = {
   caracterizacion: [
     { label: 'ID',  cls: 'session-id', val: s => sessionId(s),                 sort: s => s.filename || '' },
     { label: 'Fecha',                  val: s => dateFromFilename(s.filename) || '—', sort: s => s.filename || '' },
-    { label: 'Variante', cls: 'session-label variante-cell', editable: true, val: s => varianteHtml(s), sort: s => s.etiqueta || '' },
     { label: 'Dist.',                  val: s => s.distancia_cm != null ? s.distancia_cm + ' cm' : '—', sort: s => NUM(s.distancia_cm) },
     { label: 'Flash Hz',               val: s => s.data?.flash_hz != null ? s.data.flash_hz + ' Hz' : '—', sort: s => NUM(s.data?.flash_hz) },
     { label: 'Scan time',              val: s => s.data?.scan_time_ms != null ? s.data.scan_time_ms.toFixed(2) + ' ms' : '—', sort: s => NUM(s.data?.scan_time_ms) },
     { label: 'Throughput 1ch',         val: s => s.data?.throughput_1ch != null ? s.data.throughput_1ch.toFixed(1) + ' bps' : '—', sort: s => NUM(s.data?.throughput_1ch) },
     { label: 'Throughput 4ch',         val: s => s.data?.throughput_4ch != null ? s.data.throughput_4ch.toFixed(1) + ' bps' : '—', sort: s => NUM(s.data?.throughput_4ch) },
+    { label: 'Nota', cls: 'session-label nota-cell', editable: true, val: s => notaHtml(s), sort: s => s.notas || '' },
   ],
   ook: [
     { label: 'ID',  cls: 'session-id', val: s => sessionId(s),                 sort: s => s.filename || '' },
     { label: 'Fecha',                  val: s => dateFromFilename(s.filename) || '—', sort: s => s.filename || '' },
-    { label: 'Variante', cls: 'session-label variante-cell', editable: true, val: s => varianteHtml(s), sort: s => s.etiqueta || '' },
     { label: 'Dist.',                  val: s => s.distancia_cm != null ? s.distancia_cm + ' cm' : '—', sort: s => NUM(s.distancia_cm) },
     { label: 'Lux',                    val: s => s.iluminancia_lux != null ? s.iluminancia_lux + ' lx' : '—', sort: s => NUM(s.iluminancia_lux) },
     { label: 'Bit ms',                 val: s => s.bit_ms != null ? s.bit_ms + ' ms' : '—', sort: s => NUM(s.bit_ms) },
     { label: 'Bits',                   val: s => s.n_bits ?? '—', sort: s => NUM(s.n_bits) },
     { label: 'BER',                    val: s => { const b = s.ber_mv != null ? (s.ber_mv*100).toFixed(1)+'%' : '—'; const c = s.ber_mv === 0 ? 'ber-ok' : s.ber_mv > 0.1 ? 'ber-bad' : 'ber-mid'; return `<span class="ber-badge ${c}">${b}</span>`; }, sort: s => s.ber_mv == null ? Infinity : s.ber_mv },
     { label: 'Por canal', cls: 'ber-channels', val: s => fmtChannelBer(s), sortable: false },
+    { label: 'Nota', cls: 'session-label nota-cell', editable: true, val: s => notaHtml(s), sort: s => s.notas || '' },
   ],
 };
 const columnsFor = type => COLUMNS[type] || COLUMNS.ook;
 
-// variante = parte de la etiqueta tras "grupo/"
-function varianteValue(s) { return (s.etiqueta || '').split('/').slice(1).join('/').trim(); }
-function varianteHtml(s) {
-  const v = varianteValue(s);
-  return v ? `<span class="variante-text">${v}</span>` : `<span class="variante-empty">+ describir</span>`;
+// Nota libre por sesión (campo notas)
+function notaHtml(s) {
+  const v = (s.notas || '').trim();
+  return v ? `<span class="nota-text">${v}</span>` : `<span class="nota-empty">+ nota</span>`;
 }
 
 // ── Render list ───────────────────────────────────────────────────────────────
@@ -106,46 +169,64 @@ function renderList() {
     return !q || label.includes(q) || notas.includes(q);
   });
 
-  // Agrupar
-  const grouped = {};
-  for (const s of filtered) {
-    const key = groupKey(s);
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(s);
-  }
-
   const container = document.getElementById('sessions-container');
   if (!filtered.length) {
     container.innerHTML = `<p class="exp-empty">Sin sesiones. Sube un JSON para empezar.</p>`;
     return;
   }
 
-  container.innerHTML = Object.entries(grouped).map(([key, list]) => {
-    const grp       = groups[key] || {};
-    const type      = detectType(list[0]);
-    const collapsed = !!collapsedGroups[key];
-    return `
-      <div class="exp-group">
-        <div class="group-header">
-          <div class="group-header-top">
-            <button class="group-collapse-btn" onclick="toggleGroup('${key}')" title="Mostrar/ocultar">${collapsed ? '▸' : '▾'}</button>
-            <span class="group-title">${grp.title || groupTitle(key)}</span>
-            <span class="group-count">${list.length} sesiones</span>
-            <button class="btn group-edit-btn" onclick="openGroupEditor('${key}')">✏️ Editar contexto</button>
-          </div>
-          ${grp.description ? `<div class="group-description">${grp.description}</div>` : ''}
-        </div>
-        ${collapsed ? '' : renderGroupTable(key, list, type)}
-      </div>`;
-  }).join('');
+  // Agrupar por folder
+  const grouped = {};
+  for (const s of filtered) {
+    const key = groupKey(s);
+    (grouped[key] ||= []).push(s);
+  }
+
+  // Repartir en categorías (bandas)
+  const byCat = {};
+  for (const [key, list] of Object.entries(grouped)) {
+    const cat = groupCategory(key, list);
+    (byCat[cat] ||= []).push([key, list]);
+  }
+
+  let html = '';
+  for (const cat of CAT_ORDER) {
+    const inCat = byCat[cat];
+    if (!inCat) continue;
+    inCat.sort((a, b) => groupTitle(a[0]).localeCompare(groupTitle(b[0]), 'es', { numeric: true }));
+    const totalSes = inCat.reduce((n, [, l]) => n + l.length, 0);
+    html += `<div class="cat-band"><span class="cat-name">${CAT_LABEL[cat] || cat}</span><span class="cat-count">${inCat.length} grupos · ${totalSes} sesiones</span></div>`;
+    html += inCat.map(([key, list]) => renderGroupBlock(key, list)).join('');
+  }
+  container.innerHTML = html;
 
   container.querySelectorAll('.session-row').forEach(row => {
     row.addEventListener('click', () => openSession(row.dataset.id));
   });
-  // edición inline de la variante (sin abrir el detalle)
-  container.querySelectorAll('.variante-cell').forEach(cell => {
-    cell.addEventListener('click', e => { e.stopPropagation(); startVarianteEdit(cell); });
+  // edición inline de la nota (sin abrir el detalle)
+  container.querySelectorAll('.nota-cell').forEach(cell => {
+    cell.addEventListener('click', e => { e.stopPropagation(); startNotaEdit(cell); });
   });
+}
+
+function renderGroupBlock(key, list) {
+  const grp       = groups[key] || {};
+  const type      = detectType(list[0]);
+  const collapsed = !!collapsedGroups[key];
+  const desc      = grp.description || groupDefaultDesc(key);
+  return `
+    <div class="exp-group">
+      <div class="group-header">
+        <div class="group-header-top">
+          <button class="group-collapse-btn" onclick="toggleGroup('${key}')" title="Mostrar/ocultar">${collapsed ? '▸' : '▾'}</button>
+          <span class="group-title">${grp.title || groupTitle(key)}</span>
+          <span class="group-count">${list.length} sesiones</span>
+          <button class="btn group-edit-btn" onclick="openGroupEditor('${key}')">✏️ Editar contexto</button>
+        </div>
+        ${desc ? `<div class="group-description">${desc}</div>` : ''}
+      </div>
+      ${collapsed ? '' : renderGroupTable(key, list, type)}
+    </div>`;
 }
 
 function renderGroupTable(key, list, type) {
@@ -193,8 +274,8 @@ function renderGroupTable(key, list, type) {
   </table></div>${moreBtn}`;
 }
 
-// ── Edición inline de variante ──────────────────────────────────────────────────
-function startVarianteEdit(cell) {
+// ── Edición inline de nota ──────────────────────────────────────────────────────
+function startNotaEdit(cell) {
   if (cell.querySelector('input')) return;               // ya en edición
   const id = cell.closest('.session-row').dataset.id;
   const s  = sessions.find(x => x.id === id);
@@ -202,8 +283,8 @@ function startVarianteEdit(cell) {
 
   const input = document.createElement('input');
   input.className = 'variante-input';
-  input.value = varianteValue(s);
-  input.placeholder = 'describe esta sesión...';
+  input.value = (s.notas || '').trim();
+  input.placeholder = 'nota de esta sesión...';
   cell.innerHTML = '';
   cell.appendChild(input);
   input.focus(); input.select();
@@ -212,13 +293,11 @@ function startVarianteEdit(cell) {
   const finish = async (save) => {
     if (done) return; done = true;
     if (save) {
-      const v   = input.value.trim();
-      const key = groupKey(s);                            // conserva el grupo
-      const newEtiq = v ? `${key}/${v}` : key;
-      if (newEtiq !== (s.etiqueta || '')) {
-        const { error } = await sb.from('sesiones').update({ etiqueta: newEtiq }).eq('id', id);
+      const v = input.value.trim();
+      if (v !== (s.notas || '').trim()) {
+        const { error } = await sb.from('sesiones').update({ notas: v || null }).eq('id', id);
         if (error) { showToast('Error al guardar'); }
-        else { s.etiqueta = newEtiq; showToast('Guardado ✓'); }
+        else { s.notas = v; showToast('Guardado ✓'); }
       }
     }
     renderList();
@@ -245,7 +324,7 @@ function openGroupEditor(key) {
   const grp = groups[key] || {};
   document.getElementById('ge-key').value         = key;
   document.getElementById('ge-title').value       = grp.title || groupTitle(key);
-  document.getElementById('ge-description').value = grp.description || '';
+  document.getElementById('ge-description').value = grp.description || groupDefaultDesc(key);
   document.getElementById('group-editor-modal').classList.remove('hidden');
 }
 

@@ -809,6 +809,16 @@ header {
 .exp-upload-btn { cursor: pointer; }
 
 /* Experiment groups */
+.cat-band {
+  display: flex; align-items: baseline; gap: 10px;
+  margin: 26px 0 14px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--border);
+}
+.cat-band:first-child { margin-top: 4px; }
+.cat-name  { font-size: 0.95rem; font-weight: 800; letter-spacing: 0.3px; color: var(--text); }
+.cat-count { font-size: 0.72rem; color: var(--muted); }
+
 .exp-group { margin-bottom: 28px; }
 
 .group-header {
@@ -906,9 +916,10 @@ header {
 .session-row:hover { background: rgba(255,255,255,0.04); }
 .session-id    { font-family: monospace; font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
 .session-label { font-weight: 500; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.variante-cell { cursor: text; }
-.variante-cell:hover { background: rgba(34,211,238,0.08); }
-.variante-empty { color: var(--muted); opacity: 0.55; font-style: italic; font-weight: 400; }
+.nota-cell { cursor: text; max-width: 260px; }
+.nota-cell:hover { background: rgba(34,211,238,0.08); }
+.nota-text { white-space: normal; }
+.nota-empty { color: var(--muted); opacity: 0.5; font-style: italic; font-weight: 400; }
 .variante-input {
   width: 100%; min-width: 120px;
   background: var(--bg, #0d0d16); color: var(--text);

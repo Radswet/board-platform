@@ -69,6 +69,7 @@ const COLUMNS = {
   caracterizacion: [
     { label: 'ID',  cls: 'session-id', val: s => sessionId(s),                 sort: s => s.filename || '' },
     { label: 'Fecha',                  val: s => dateFromFilename(s.filename) || '—', sort: s => s.filename || '' },
+    { label: 'Variante', cls: 'session-label variante-cell', editable: true, val: s => varianteHtml(s), sort: s => s.etiqueta || '' },
     { label: 'Dist.',                  val: s => s.distancia_cm != null ? s.distancia_cm + ' cm' : '—', sort: s => NUM(s.distancia_cm) },
     { label: 'Flash Hz',               val: s => s.data?.flash_hz != null ? s.data.flash_hz + ' Hz' : '—', sort: s => NUM(s.data?.flash_hz) },
     { label: 'Scan time',              val: s => s.data?.scan_time_ms != null ? s.data.scan_time_ms.toFixed(2) + ' ms' : '—', sort: s => NUM(s.data?.scan_time_ms) },
@@ -78,7 +79,7 @@ const COLUMNS = {
   ook: [
     { label: 'ID',  cls: 'session-id', val: s => sessionId(s),                 sort: s => s.filename || '' },
     { label: 'Fecha',                  val: s => dateFromFilename(s.filename) || '—', sort: s => s.filename || '' },
-    { label: 'Variante', cls: 'session-label', val: s => s.etiqueta?.split('/')[1]?.trim() || '—', sort: s => s.etiqueta || '' },
+    { label: 'Variante', cls: 'session-label variante-cell', editable: true, val: s => varianteHtml(s), sort: s => s.etiqueta || '' },
     { label: 'Dist.',                  val: s => s.distancia_cm != null ? s.distancia_cm + ' cm' : '—', sort: s => NUM(s.distancia_cm) },
     { label: 'Lux',                    val: s => s.iluminancia_lux != null ? s.iluminancia_lux + ' lx' : '—', sort: s => NUM(s.iluminancia_lux) },
     { label: 'Bit ms',                 val: s => s.bit_ms != null ? s.bit_ms + ' ms' : '—', sort: s => NUM(s.bit_ms) },
@@ -88,6 +89,13 @@ const COLUMNS = {
   ],
 };
 const columnsFor = type => COLUMNS[type] || COLUMNS.ook;
+
+// variante = parte de la etiqueta tras "grupo/"
+function varianteValue(s) { return (s.etiqueta || '').split('/').slice(1).join('/').trim(); }
+function varianteHtml(s) {
+  const v = varianteValue(s);
+  return v ? `<span class="variante-text">${v}</span>` : `<span class="variante-empty">+ describir</span>`;
+}
 
 // ── Render list ───────────────────────────────────────────────────────────────
 function renderList() {
@@ -134,6 +142,10 @@ function renderList() {
   container.querySelectorAll('.session-row').forEach(row => {
     row.addEventListener('click', () => openSession(row.dataset.id));
   });
+  // edición inline de la variante (sin abrir el detalle)
+  container.querySelectorAll('.variante-cell').forEach(cell => {
+    cell.addEventListener('click', e => { e.stopPropagation(); startVarianteEdit(cell); });
+  });
 }
 
 function renderGroupTable(key, list, type) {
@@ -179,6 +191,43 @@ function renderGroupTable(key, list, type) {
     <thead><tr>${head}</tr></thead>
     <tbody>${rows}</tbody>
   </table></div>${moreBtn}`;
+}
+
+// ── Edición inline de variante ──────────────────────────────────────────────────
+function startVarianteEdit(cell) {
+  if (cell.querySelector('input')) return;               // ya en edición
+  const id = cell.closest('.session-row').dataset.id;
+  const s  = sessions.find(x => x.id === id);
+  if (!s) return;
+
+  const input = document.createElement('input');
+  input.className = 'variante-input';
+  input.value = varianteValue(s);
+  input.placeholder = 'describe esta sesión...';
+  cell.innerHTML = '';
+  cell.appendChild(input);
+  input.focus(); input.select();
+
+  let done = false;
+  const finish = async (save) => {
+    if (done) return; done = true;
+    if (save) {
+      const v   = input.value.trim();
+      const key = groupKey(s);                            // conserva el grupo
+      const newEtiq = v ? `${key}/${v}` : key;
+      if (newEtiq !== (s.etiqueta || '')) {
+        const { error } = await sb.from('sesiones').update({ etiqueta: newEtiq }).eq('id', id);
+        if (error) { showToast('Error al guardar'); }
+        else { s.etiqueta = newEtiq; showToast('Guardado ✓'); }
+      }
+    }
+    renderList();
+  };
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); finish(true);  }
+    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  input.addEventListener('blur', () => finish(true));
 }
 
 // ── Interacciones tabla ─────────────────────────────────────────────────────────

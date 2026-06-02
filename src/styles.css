@@ -906,6 +906,16 @@ header {
 .session-row:hover { background: rgba(255,255,255,0.04); }
 .session-id    { font-family: monospace; font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
 .session-label { font-weight: 500; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.variante-cell { cursor: text; }
+.variante-cell:hover { background: rgba(34,211,238,0.08); }
+.variante-empty { color: var(--muted); opacity: 0.55; font-style: italic; font-weight: 400; }
+.variante-input {
+  width: 100%; min-width: 120px;
+  background: var(--bg, #0d0d16); color: var(--text);
+  border: 1px solid #22d3ee; border-radius: 6px;
+  padding: 4px 7px; font-size: 0.8rem; font-family: inherit;
+}
+.variante-input:focus { outline: none; }
 .exp-empty { text-align: center; color: var(--muted); padding: 32px; }
 
 /* BER badges */

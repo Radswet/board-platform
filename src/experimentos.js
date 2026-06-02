@@ -217,8 +217,10 @@ async function saveGroupEditor() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function sessionId(s) {
-  const m = (s.filename || '').match(/(\d{8})_(\d{4})/);
-  return m ? `${m[1]}_${m[2]}` : s.id?.slice(0, 8) || '—';
+  const m6 = (s.filename || '').match(/(\d{8})_(\d{6})/);   // con segundos
+  if (m6) return `${m6[1]}_${m6[2]}`;
+  const m4 = (s.filename || '').match(/(\d{8})_(\d{4})/);
+  return m4 ? `${m4[1]}_${m4[2]}` : s.id?.slice(0, 8) || '—';
 }
 
 function dateFromFilename(filename) {

@@ -6,6 +6,11 @@ let groups        = {};   // id → {title, description}
 let activeSession = null;
 let lumChart = null, berChart = null, bitsChart = null;
 
+const ROW_LIMIT = 8;                  // filas visibles antes de "ver más"
+let collapsedGroups = {};             // key → bool (tabla oculta)
+let expandedGroups  = {};             // key → bool (mostrar todas las filas)
+let sortState       = {};             // key → {idx, dir:1|-1}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function initExperimentos() {
   setupDropZone();
@@ -57,6 +62,33 @@ function groupTitle(key) {
   return map[key] || key;
 }
 
+// ── Column defs ────────────────────────────────────────────────────────────────
+// val: HTML de la celda · sort: valor para ordenar · sortable:false desactiva orden
+const NUM = v => (v == null ? -Infinity : v);
+const COLUMNS = {
+  caracterizacion: [
+    { label: 'ID',  cls: 'session-id', val: s => sessionId(s),                 sort: s => s.filename || '' },
+    { label: 'Fecha',                  val: s => dateFromFilename(s.filename) || '—', sort: s => s.filename || '' },
+    { label: 'Dist.',                  val: s => s.distancia_cm != null ? s.distancia_cm + ' cm' : '—', sort: s => NUM(s.distancia_cm) },
+    { label: 'Flash Hz',               val: s => s.data?.flash_hz != null ? s.data.flash_hz + ' Hz' : '—', sort: s => NUM(s.data?.flash_hz) },
+    { label: 'Scan time',              val: s => s.data?.scan_time_ms != null ? s.data.scan_time_ms.toFixed(2) + ' ms' : '—', sort: s => NUM(s.data?.scan_time_ms) },
+    { label: 'Throughput 1ch',         val: s => s.data?.throughput_1ch != null ? s.data.throughput_1ch.toFixed(1) + ' bps' : '—', sort: s => NUM(s.data?.throughput_1ch) },
+    { label: 'Throughput 4ch',         val: s => s.data?.throughput_4ch != null ? s.data.throughput_4ch.toFixed(1) + ' bps' : '—', sort: s => NUM(s.data?.throughput_4ch) },
+  ],
+  ook: [
+    { label: 'ID',  cls: 'session-id', val: s => sessionId(s),                 sort: s => s.filename || '' },
+    { label: 'Fecha',                  val: s => dateFromFilename(s.filename) || '—', sort: s => s.filename || '' },
+    { label: 'Variante', cls: 'session-label', val: s => s.etiqueta?.split('/')[1]?.trim() || '—', sort: s => s.etiqueta || '' },
+    { label: 'Dist.',                  val: s => s.distancia_cm != null ? s.distancia_cm + ' cm' : '—', sort: s => NUM(s.distancia_cm) },
+    { label: 'Lux',                    val: s => s.iluminancia_lux != null ? s.iluminancia_lux + ' lx' : '—', sort: s => NUM(s.iluminancia_lux) },
+    { label: 'Bit ms',                 val: s => s.bit_ms != null ? s.bit_ms + ' ms' : '—', sort: s => NUM(s.bit_ms) },
+    { label: 'Bits',                   val: s => s.n_bits ?? '—', sort: s => NUM(s.n_bits) },
+    { label: 'BER',                    val: s => { const b = s.ber_mv != null ? (s.ber_mv*100).toFixed(1)+'%' : '—'; const c = s.ber_mv === 0 ? 'ber-ok' : s.ber_mv > 0.1 ? 'ber-bad' : 'ber-mid'; return `<span class="ber-badge ${c}">${b}</span>`; }, sort: s => s.ber_mv == null ? Infinity : s.ber_mv },
+    { label: 'Por canal', cls: 'ber-channels', val: s => fmtChannelBer(s), sortable: false },
+  ],
+};
+const columnsFor = type => COLUMNS[type] || COLUMNS.ook;
+
 // ── Render list ───────────────────────────────────────────────────────────────
 function renderList() {
   const q = (document.getElementById('exp-search')?.value || '').toLowerCase();
@@ -81,19 +113,21 @@ function renderList() {
   }
 
   container.innerHTML = Object.entries(grouped).map(([key, list]) => {
-    const grp  = groups[key] || {};
-    const type = detectType(list[0]);
+    const grp       = groups[key] || {};
+    const type      = detectType(list[0]);
+    const collapsed = !!collapsedGroups[key];
     return `
       <div class="exp-group">
         <div class="group-header">
           <div class="group-header-top">
+            <button class="group-collapse-btn" onclick="toggleGroup('${key}')" title="Mostrar/ocultar">${collapsed ? '▸' : '▾'}</button>
             <span class="group-title">${grp.title || groupTitle(key)}</span>
             <span class="group-count">${list.length} sesiones</span>
             <button class="btn group-edit-btn" onclick="openGroupEditor('${key}')">✏️ Editar contexto</button>
           </div>
           ${grp.description ? `<div class="group-description">${grp.description}</div>` : ''}
         </div>
-        ${renderGroupTable(key, list, type)}
+        ${collapsed ? '' : renderGroupTable(key, list, type)}
       </div>`;
   }).join('');
 
@@ -103,55 +137,58 @@ function renderList() {
 }
 
 function renderGroupTable(key, list, type) {
-  if (type === 'caracterizacion') {
-    const rows = list.map(s => {
-      const d   = s.data || {};
-      const sid = sessionId(s);
-      const fecha = dateFromFilename(s.filename) || '—';
-      return `<tr class="session-row" data-id="${s.id}">
-        <td class="session-id">${sid}</td>
-        <td>${fecha}</td>
-        <td>${s.distancia_cm != null ? s.distancia_cm + ' cm' : '—'}</td>
-        <td>${d.flash_hz != null ? d.flash_hz + ' Hz' : '—'}</td>
-        <td>${d.scan_time_ms != null ? d.scan_time_ms.toFixed(2) + ' ms' : '—'}</td>
-        <td>${d.throughput_1ch != null ? d.throughput_1ch.toFixed(1) + ' bps' : '—'}</td>
-        <td>${d.throughput_4ch != null ? d.throughput_4ch.toFixed(1) + ' bps' : '—'}</td>
-      </tr>`;
-    }).join('');
-    return `<div class="exp-table-wrap"><table class="exp-table">
-      <thead><tr>
-        <th>ID</th><th>Fecha</th><th>Dist.</th>
-        <th>Flash Hz</th><th>Scan time</th><th>Throughput 1ch</th><th>Throughput 4ch</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>`;
+  const cols = columnsFor(type);
+  const st   = sortState[key];
+
+  // Orden
+  let ordered = list.slice();
+  if (st && cols[st.idx]?.sort) {
+    const get = cols[st.idx].sort;
+    ordered.sort((a, b) => {
+      const va = get(a), vb = get(b);
+      if (va < vb) return -st.dir;
+      if (va > vb) return  st.dir;
+      return 0;
+    });
   }
 
-  // OOK / BPSK / unknown
-  const rows = list.map(s => {
-    const sid  = sessionId(s);
-    const fecha = dateFromFilename(s.filename) || '—';
-    const ber   = s.ber_mv != null ? (s.ber_mv * 100).toFixed(1) + '%' : '—';
-    const berClass = s.ber_mv === 0 ? 'ber-ok' : s.ber_mv > 0.1 ? 'ber-bad' : 'ber-mid';
-    return `<tr class="session-row" data-id="${s.id}">
-      <td class="session-id">${sid}</td>
-      <td>${fecha}</td>
-      <td class="session-label">${s.etiqueta?.split('/')[1]?.trim() || '—'}</td>
-      <td>${s.distancia_cm != null ? s.distancia_cm + ' cm' : '—'}</td>
-      <td>${s.iluminancia_lux != null ? s.iluminancia_lux + ' lx' : '—'}</td>
-      <td>${s.bit_ms != null ? s.bit_ms + ' ms' : '—'}</td>
-      <td>${s.n_bits ?? '—'}</td>
-      <td><span class="ber-badge ${berClass}">${ber}</span></td>
-      <td class="ber-channels">${fmtChannelBer(s)}</td>
-    </tr>`;
+  const expanded = !!expandedGroups[key];
+  const visible  = expanded ? ordered : ordered.slice(0, ROW_LIMIT);
+  const hidden   = ordered.length - visible.length;
+
+  const head = cols.map((c, i) => {
+    if (c.sortable === false) return `<th>${c.label}</th>`;
+    const active = st && st.idx === i;
+    const arrow  = active ? (st.dir === 1 ? ' ▲' : ' ▼') : '';
+    return `<th class="sortable${active ? ' sorted' : ''}" onclick="sortGroup('${key}',${i})">${c.label}${arrow}</th>`;
   }).join('');
+
+  const rows = visible.map(s =>
+    `<tr class="session-row" data-id="${s.id}">${
+      cols.map(c => `<td${c.cls ? ` class="${c.cls}"` : ''}>${c.val(s)}</td>`).join('')
+    }</tr>`
+  ).join('');
+
+  const moreBtn = (hidden > 0 || expanded)
+    ? `<button class="exp-more-btn" onclick="toggleExpand('${key}')">${
+        expanded ? '▲ Ver menos' : `▾ Ver más (${hidden})`
+      }</button>`
+    : '';
+
   return `<div class="exp-table-wrap"><table class="exp-table">
-    <thead><tr>
-      <th>ID</th><th>Fecha</th><th>Variante</th><th>Dist.</th>
-      <th>Lux</th><th>Bit ms</th><th>Bits</th><th>BER</th><th>Por canal</th>
-    </tr></thead>
+    <thead><tr>${head}</tr></thead>
     <tbody>${rows}</tbody>
-  </table></div>`;
+  </table></div>${moreBtn}`;
+}
+
+// ── Interacciones tabla ─────────────────────────────────────────────────────────
+function toggleGroup(key)  { collapsedGroups[key] = !collapsedGroups[key]; renderList(); }
+function toggleExpand(key) { expandedGroups[key]  = !expandedGroups[key];  renderList(); }
+function sortGroup(key, idx) {
+  const cur = sortState[key];
+  // mismo col → invierte; nuevo col → asc
+  sortState[key] = (cur && cur.idx === idx) ? { idx, dir: -cur.dir } : { idx, dir: 1 };
+  renderList();
 }
 
 // ── Group editor ──────────────────────────────────────────────────────────────

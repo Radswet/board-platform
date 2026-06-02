@@ -827,6 +827,12 @@ header {
 .group-title   { font-weight: 700; font-size: 0.95rem; flex: 1; }
 .group-count   { font-size: 0.75rem; color: var(--muted); background: rgba(255,255,255,0.06); padding: 3px 8px; border-radius: 6px; }
 .group-edit-btn { font-size: 0.75rem; padding: 4px 10px; }
+.group-collapse-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 0.9rem; line-height: 1;
+  padding: 2px 4px; border-radius: 4px; transition: color 0.15s, background 0.15s;
+}
+.group-collapse-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
 .group-description {
   margin-top: 10px;
   font-size: 0.82rem;
@@ -883,7 +889,19 @@ header {
   text-align: left;
   white-space: nowrap;
 }
+.exp-table th.sortable { cursor: pointer; user-select: none; transition: color 0.15s, background 0.15s; }
+.exp-table th.sortable:hover { color: var(--text); background: rgba(255,255,255,0.07); }
+.exp-table th.sorted { color: #22d3ee; }
 .exp-table td { padding: 10px 12px; border-top: 1px solid var(--border); color: var(--text); }
+.exp-more-btn {
+  display: block; width: 100%;
+  background: var(--surface); border: 1px solid var(--border); border-top: none;
+  border-radius: 0 0 12px 12px;
+  color: var(--muted); font-size: 0.78rem; font-weight: 600;
+  padding: 8px; cursor: pointer; transition: color 0.15s, background 0.15s;
+}
+.exp-more-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+.exp-group .exp-table-wrap:has(+ .exp-more-btn) { border-radius: 0; }
 .session-row { cursor: pointer; transition: background 0.12s; }
 .session-row:hover { background: rgba(255,255,255,0.04); }
 .session-id    { font-family: monospace; font-size: 0.78rem; color: var(--muted); white-space: nowrap; }

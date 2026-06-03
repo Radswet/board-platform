@@ -46,84 +46,70 @@ function detectType(s) {
   return 'unknown';
 }
 
-// Grupo = etiqueta completa "expXX / <folder>" → cada folder/sweep es su grupo.
+// Grupo = etiqueta completa "expXX / <subpath>" → cada folder/sweep es su grupo.
 function groupKey(s) {
-  const e = (s.etiqueta || '').replace(/\s*\/\s*/g, ' / ').trim();
-  return e || 'otros';
+  return (s.etiqueta || '').trim() || 'otros';
 }
-// parte tras "expXX / " = código del folder
+// parte tras el primer "/" = código del folder (puede tener subcarpetas)
 function sweepCode(key) {
-  const p = key.split('/');
-  return (p.length > 1 ? p.slice(1).join('/') : p[0]).trim();
+  const i = key.indexOf('/');
+  return i === -1 ? key.trim() : key.slice(i + 1).trim();
 }
 
 // ── Catálogo desde el README de datos ───────────────────────────────────────────
-// folder code → {cat, res}  (res = resumen del resultado)
-const SWEEP_INFO = {
-  '2.5bps_400ms_260lux_b100':       { cat:'valid',   res:'Blooming a 20–25 cm; resto BER=0.' },
-  '2.5bps_400ms_260lux_b75':        { cat:'valid',   res:'BER=0 en todo el rango.' },
-  '2.5bps_400ms_370lux_b100_r2':    { cat:'valid',   res:'Revalidado (sin el bug de BER).' },
-  '2.5bps_400ms_370lux_b75':        { cat:'valid',   res:'BER=0; sin blooming.' },
-  '2.5bps_400ms_900lux_b75':        { cat:'valid',   res:'Blooming a 10–30 cm por alta lux.' },
-  '3.3bps_300ms_260lux_b75':        { cat:'valid',   res:'n=1 por punto.' },
-  '3.3bps_300ms_370lux_b75':        { cat:'valid',   res:'n=1 por punto.' },
-  '5.0bps_200ms_260lux_b75':        { cat:'valid',   res:'n=1 por punto; zona muerta a 50 cm (H10).' },
-  '5.0bps_200ms_370lux_b75':        { cat:'valid',   res:'n=1 por punto.' },
-  '2.5bps_400ms_260lux_b100_prbs7': { cat:'special', res:'Secuencia PRBS7 (no 1010…). Falló por DC wander (H9).' },
-  'blooming_test_20cm_260lux_b75':  { cat:'special', res:'20 cm fijo, varias velocidades. Aísla blooming vs phase slipping (H11).' },
-  'nuevo_setup':                    { cat:'special', res:'Sin repisa, con AEC registrado. Validación del nuevo setup (H14).' },
-  'historico':                      { cat:'hist',    res:'Archivos sueltos pre-organización / sweeps sin lux.' },
-  'legacy':                         { cat:'hist',    res:'Datos legacy.' },
+// code → {cat, ord, title?, res}.  Convención: <bps>bps_<lux>lux_b<brillo>_s<N>
+const CATALOG = {
+  // s1 — con repisa (datos principales de tesis)
+  '2.5bps_260lux_b100_s1': { cat:'s1', ord:1, res:'Blooming a 20–25 cm; resto BER=0.' },
+  '2.5bps_260lux_b75_s1':  { cat:'s1', ord:2, res:'BER=0 en todo el rango.' },
+  '2.5bps_370lux_b100_s1': { cat:'s1', ord:3, res:'Revalidado (sin el bug de BER).' },
+  '2.5bps_370lux_b75_s1':  { cat:'s1', ord:4, res:'BER=0; sin blooming.' },
+  '2.5bps_900lux_b75_s1':  { cat:'s1', ord:5, res:'Blooming a 10–30 cm por alta lux.' },
+  '3.3bps_260lux_b75_s1':  { cat:'s1', ord:6, res:'n=1 por punto.' },
+  '3.3bps_370lux_b75_s1':  { cat:'s1', ord:7, res:'n=1 por punto.' },
+  '5.0bps_260lux_b75_s1':  { cat:'s1', ord:8, res:'n=1 por punto; zona muerta a 50 cm (H10).' },
+  '5.0bps_370lux_b75_s1':  { cat:'s1', ord:9, res:'n=1 por punto.' },
+  // s2 — sin repisa (con AEC)
+  '2.5bps_260lux_b100_s2': { cat:'s2', ord:1, res:'Validación: BER=0 a 15 cm ✅.' },
+  '5.0bps_260lux_b75_s2':  { cat:'s2', ord:2, res:'BER≈0.5 (contaminación Y/R sin repisa) — H14.' },
+  // especiales
+  'especiales/prbs7_2.5bps_260lux_b100':      { cat:'special', ord:1, title:'PRBS7 · 2.5 bps · 260 lux · b100', res:'Secuencia PRBS7 — falló por DC wander (H9).' },
+  'especiales/blooming_test_20cm_260lux_b75': { cat:'special', ord:2, title:'Blooming test · 20 cm · 260 lux · b75', res:'20 cm fijo, varias velocidades. Aísla blooming vs phase slipping (H11).' },
+  // histórico
+  'historico/legacy_sin_preamble':      { cat:'hist', ord:1, title:'Legacy sin preamble (14 may)', res:'Primeras pruebas, script sin preamble.' },
+  'historico/velocidades_sin_lux':      { cat:'hist', ord:2, title:'Velocidades sin lux',          res:'Sweeps viejos sin lux registrada (1.25–5.6 bps, b100).' },
+  'historico/pre_folders':              { cat:'hist', ord:3, title:'Pre-folders (18–19 may)',      res:'Archivos sueltos del período con bug de BER.' },
+  'historico/2.5bps_400ms_370lux_b100': { cat:'hist', ord:4, title:'370 lux b100 · bug BER',       res:'V1 370 lux b100 con el bug de BER (reemplazado por s1).' },
 };
-const NAME_MAP = {
-  'blooming_test_20cm_260lux_b75': 'Blooming test · 20 cm · 260 lux · b75',
-  'nuevo_setup':                   'Nuevo setup (sin repisa · AEC)',
-  'historico':                     'Histórico (pre-organización)',
-  'legacy':                        'Legacy',
-};
-const V_BY_MS = { 400:'V1', 300:'V2', 200:'V3' };
 
-// parsea "2.5bps_400ms_260lux_b100[_sufijo]"
-function parseSweep(code) {
-  const m = code.match(/^([\d.]+)bps_(\d+)ms_(\d+)lux_b(\d+)(?:_(.+))?$/);
-  if (!m) return null;
-  return { bps:m[1], ms:+m[2], lux:+m[3], brillo:+m[4], suffix:m[5] || '' };
-}
-
+const NEW_SWEEP_RE = /^([\d.]+)bps_(\d+)lux_b(\d+)_s(\d+)$/;
 function groupTitle(key) {
   const code = sweepCode(key);
-  const sw = parseSweep(code);
-  if (sw) {
-    const v   = V_BY_MS[sw.ms] ? `${V_BY_MS[sw.ms]} · ` : '';
-    const suf = sw.suffix ? ` · ${sw.suffix}` : '';
-    return `${v}${sw.bps} bps · ${sw.ms} ms · ${sw.lux} lux · b${sw.brillo}${suf}`;
-  }
-  return NAME_MAP[code] || code || key;
+  const m = code.match(NEW_SWEEP_RE);
+  if (m) return `${m[1]} bps · ${m[2]} lux · b${m[3]} · s${m[4]}`;
+  return CATALOG[code]?.title || code || key;
 }
-
 function groupDefaultDesc(key) {
-  const code = sweepCode(key);
-  const sw   = parseSweep(code);
-  const info = SWEEP_INFO[code];
-  const parts = [];
-  if (sw) parts.push(`bit_ms=${sw.ms} (${sw.bps} bps) · ~${sw.lux} lux · brillo TX ${sw.brillo}%.`);
-  if (info?.res) parts.push(info.res);
-  return parts.join(' ');
+  return CATALOG[sweepCode(key)]?.res || '';
+}
+function groupOrder(key) {
+  const c = CATALOG[sweepCode(key)];
+  return c ? c.ord : 999;
 }
 
 // ── Categorías (bandas) ─────────────────────────────────────────────────────────
-const CAT_ORDER = ['caracterizacion','valid','special','hist','other'];
+const CAT_ORDER = ['caracterizacion','s1','s2','special','hist','other'];
 const CAT_LABEL = {
   caracterizacion: 'Caracterización · Rolling Shutter',
-  valid:           'Sweeps OOK válidos · datos de tesis',
+  s1:              'Sweeps OOK válidos · s1 (con repisa) · datos de tesis',
+  s2:              'Sweeps OOK · s2 (sin repisa, con AEC)',
   special:         'Experimentos especiales',
   hist:            'Histórico',
   other:           'Otros',
 };
 function groupCategory(key, list) {
   if (detectType(list[0]) === 'caracterizacion') return 'caracterizacion';
-  const info = SWEEP_INFO[sweepCode(key)];
-  return info ? info.cat : 'other';
+  return CATALOG[sweepCode(key)]?.cat || 'other';
 }
 
 // ── Column defs ────────────────────────────────────────────────────────────────
@@ -193,7 +179,7 @@ function renderList() {
   for (const cat of CAT_ORDER) {
     const inCat = byCat[cat];
     if (!inCat) continue;
-    inCat.sort((a, b) => groupTitle(a[0]).localeCompare(groupTitle(b[0]), 'es', { numeric: true }));
+    inCat.sort((a, b) => (groupOrder(a[0]) - groupOrder(b[0])) || groupTitle(a[0]).localeCompare(groupTitle(b[0]), 'es', { numeric: true }));
     const totalSes = inCat.reduce((n, [, l]) => n + l.length, 0);
     html += `<div class="cat-band"><span class="cat-name">${CAT_LABEL[cat] || cat}</span><span class="cat-count">${inCat.length} grupos · ${totalSes} sesiones</span></div>`;
     html += inCat.map(([key, list]) => renderGroupBlock(key, list)).join('');

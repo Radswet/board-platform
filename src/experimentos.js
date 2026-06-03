@@ -40,7 +40,7 @@ async function loadSessions() {
 // ── Type detection ────────────────────────────────────────────────────────────
 function detectType(s) {
   const d = s.data || {};
-  if (d.scan_time_ms != null || d.throughput_1ch != null) return 'caracterizacion';
+  if (d.scan_time_ms != null || d.throughput_1ch != null || d.flash_hz != null) return 'caracterizacion';
   if (Array.isArray(d.records) && d.records.length && d.records[0].lum)  return 'ook';
   if (Array.isArray(d.records) && d.records.length) return 'bpsk';
   return 'unknown';

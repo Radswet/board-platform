@@ -837,6 +837,41 @@ header {
 .group-title   { font-weight: 700; font-size: 0.95rem; flex: 1; }
 .group-count   { font-size: 0.75rem; color: var(--muted); background: rgba(255,255,255,0.06); padding: 3px 8px; border-radius: 6px; }
 .group-edit-btn { font-size: 0.75rem; padding: 4px 10px; }
+.group-setup-btn { font-size: 0.75rem; padding: 4px 10px; }
+
+/* ── Modal de fotos del setup ──────────────────────────────────────────── */
+.setup-modal {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.setup-modal-box {
+  background: var(--bg, #fff); border-radius: 12px;
+  max-width: min(900px, 95vw); max-height: 90vh; overflow: auto;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+}
+.setup-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; border-bottom: 1px solid rgba(0,0,0,0.1);
+  font-weight: 600; font-size: 0.95rem;
+}
+.setup-modal-close {
+  background: none; border: none; font-size: 1.1rem; cursor: pointer;
+  padding: 2px 8px; border-radius: 6px;
+}
+.setup-modal-close:hover { background: rgba(0,0,0,0.08); }
+.setup-modal-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px; padding: 18px;
+}
+.setup-foto {
+  width: 100%; border-radius: 8px; cursor: zoom-in;
+  border: 1px solid rgba(0,0,0,0.1);
+}
+.setup-modal-foot {
+  padding: 0 18px 16px; font-size: 0.8rem; color: #888; text-align: center;
+}
 .group-collapse-btn {
   background: none; border: none; cursor: pointer;
   color: var(--muted); font-size: 0.9rem; line-height: 1;

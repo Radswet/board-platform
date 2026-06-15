@@ -97,6 +97,40 @@ function groupOrder(key) {
   return c ? c.ord : 999;
 }
 
+// ── Fotos del setup por fecha ─────────────────────────────────────────────────
+// Cada grupo deriva su fecha de la primera sesión (filename AAAAMMDD_...).
+// Las fotos viven en assets/setup/<fecha>/ y se despliegan con la plataforma.
+const SETUP_FOTOS = {
+  '2026-04-30': { label: 'Setup inicial', fotos: ['IMG_2226.jpg','IMG_2227.jpg','IMG_2228.jpg'] },
+  '2026-05-19': { label: 'Sweeps con repisa (s1)', fotos: ['setup_2127.jpg'] },
+  '2026-05-20': { label: 'Sweeps con repisa (s1)', fotos: ['setup_2127.jpg'] }, // mismo setup que 19 may
+  '2026-06-01': { label: 'Sin repisa (s2)', fotos: ['IMG_2517.jpg'] },
+  '2026-06-02': { label: 'Re-validación con repisa', fotos: ['IMG_2524.jpg'] },
+  '2026-06-03': { label: 'Caracterización AEC (picamera2)', fotos: ['IMG_2533.jpg','IMG_2534.jpg','IMG_2535.jpg','IMG_2536.jpg'] },
+};
+// Carpeta de fotos a usar para una fecha dada (las de 20 may reusan las de 19 may).
+function fotoDateFor(date) {
+  if (SETUP_FOTOS[date]) return date === '2026-05-20' ? '2026-05-19' : date;
+  return null;
+}
+// Fecha (AAAA-MM-DD) del grupo a partir de la primera sesión con filename fechado.
+function groupDate(list) {
+  for (const s of list) {
+    const m = (s.filename || '').match(/^(\d{4})(\d{2})(\d{2})_/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  }
+  return null;
+}
+// Devuelve {dir, label, fotos[]} o null si no hay fotos para la fecha del grupo.
+function setupFotosFor(list) {
+  const date = groupDate(list);
+  if (!date) return null;
+  const fdate = fotoDateFor(date);
+  if (!fdate) return null;
+  const info = SETUP_FOTOS[date] || SETUP_FOTOS[fdate];
+  return { dir: `assets/setup/${fdate}`, label: info.label, fotos: info.fotos, date };
+}
+
 // ── Categorías (bandas) ─────────────────────────────────────────────────────────
 const CAT_ORDER = ['caracterizacion','s1','s2','special','hist','other'];
 const CAT_LABEL = {
@@ -200,6 +234,10 @@ function renderGroupBlock(key, list) {
   const type      = detectType(list[0]);
   const collapsed = !!collapsedGroups[key];
   const desc      = grp.description || groupDefaultDesc(key);
+  const setup     = setupFotosFor(list);
+  const lupa      = setup
+    ? `<button class="btn group-setup-btn" onclick="openSetupFotos('${key}')" title="Ver setup del ${setup.date} (${setup.label})">🔍 Setup</button>`
+    : '';
   return `
     <div class="exp-group">
       <div class="group-header">
@@ -207,12 +245,41 @@ function renderGroupBlock(key, list) {
           <button class="group-collapse-btn" onclick="toggleGroup('${key}')" title="Mostrar/ocultar">${collapsed ? '▸' : '▾'}</button>
           <span class="group-title">${grp.title || groupTitle(key)}</span>
           <span class="group-count">${list.length} sesiones</span>
+          ${lupa}
           <button class="btn group-edit-btn" onclick="openGroupEditor('${key}')">✏️ Editar contexto</button>
         </div>
         ${desc ? `<div class="group-description">${desc}</div>` : ''}
       </div>
       ${collapsed ? '' : renderGroupTable(key, list, type)}
     </div>`;
+}
+
+// ── Modal de fotos del setup ──────────────────────────────────────────────────
+function openSetupFotos(key) {
+  const list = (sessions || []).filter(s => groupKey(s) === key);
+  const setup = setupFotosFor(list);
+  if (!setup) return;
+  const imgs = setup.fotos.map(f =>
+    `<img src="${setup.dir}/${f}" alt="${f}" class="setup-foto" onclick="window.open(this.src,'_blank')">`
+  ).join('');
+  let modal = document.getElementById('setup-foto-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'setup-foto-modal';
+    modal.className = 'setup-modal';
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `
+    <div class="setup-modal-box">
+      <div class="setup-modal-head">
+        <span>🔍 Setup · ${setup.date} · ${setup.label}</span>
+        <button class="setup-modal-close" onclick="document.getElementById('setup-foto-modal').remove()">✕</button>
+      </div>
+      <div class="setup-modal-grid">${imgs}</div>
+      <div class="setup-modal-foot">Clic en una foto para abrirla en grande</div>
+    </div>`;
+  modal.style.display = 'flex';
 }
 
 function renderGroupTable(key, list, type) {

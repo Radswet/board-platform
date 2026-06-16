@@ -34,6 +34,14 @@ CREATE TABLE IF NOT EXISTS sesiones (
   -- Datos completos (para graficar en la web)
   data            JSONB,
 
+  -- Cámara (P5-A)
+  cam_exposure_us INTEGER, -- exposure_time_absolute al inicio de sesión (µs)
+  cam_gain        INTEGER, -- gain al inicio de sesión
+  aec_locked      BOOLEAN DEFAULT FALSE,
+
+  -- Sesión
+  n_sequences     INTEGER, -- cuántas secuencias se transmitieron
+
   -- Campos opcionales para organizar
   etiqueta        TEXT,    -- nombre corto para identificar la sesión
   notas           TEXT
